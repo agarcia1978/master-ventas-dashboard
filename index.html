@@ -529,11 +529,32 @@ async function ensureDataLoaded(){
   await init();
 }
 
+function canEditRole(role){
+  return role === 'master' || role === 'pricing';
+}
+
+function toggleEditMode(){
+  if(!canEditRole(editorRole)) return;
+  isEditor = !isEditor;
+  if(loginMethod === 'password'){
+    try{
+      const raw = window.sessionStorage.getItem('aplus_session');
+      const saved = raw ? JSON.parse(raw) : {};
+      saved.isEditor = isEditor;
+      window.sessionStorage.setItem('aplus_session', JSON.stringify(saved));
+    }catch(e){}
+  }
+  applyEditorUI();
+  toast(isEditor ? "Modo edicion activado" : "Modo consulta activado");
+}
+
 function applyEditorUI(){
   const btn = document.getElementById('editToggleBtn');
   const adminBtn = document.getElementById('adminUsersBtn');
   if(!loggedIn){
     btn.style.display = "none";
+    btn.onclick = null;
+    btn.style.cursor = "default";
     adminBtn.style.display = "none";
     document.getElementById('addContactoBtn').style.display = "none";
     document.getElementById('addTarifaBtn').style.display = "none";
@@ -541,7 +562,16 @@ function applyEditorUI(){
     return;
   }
   btn.style.display = "inline-block";
-  btn.textContent = (isEditor ? "Edicion activa (" : "Sesion (") + roleLabel(editorRole) + ")";
+  const puedeEditar = canEditRole(editorRole);
+  if(puedeEditar){
+    btn.style.cursor = "pointer";
+    btn.onclick = toggleEditMode;
+    btn.textContent = (isEditor ? "Edicion activa (" : "Modo consulta (") + roleLabel(editorRole) + ") - clic para " + (isEditor ? "salir" : "editar");
+  } else {
+    btn.style.cursor = "default";
+    btn.onclick = null;
+    btn.textContent = "Sesion (" + roleLabel(editorRole) + ")";
+  }
   btn.classList.toggle('active', isEditor);
   document.getElementById('addContactoBtn').style.display = isEditor ? "inline-block" : "none";
   document.getElementById('addTarifaBtn').style.display = isEditor ? "inline-block" : "none";
@@ -569,12 +599,12 @@ async function attemptLogin(){
   if(!email || !password){ errEl.textContent = "Ingresa tu correo y tu contrasena."; return; }
   const { data: role, error } = await sb.rpc('login_check', { p_email: email, p_password: password });
   if(error || !role){ errEl.textContent = "Correo o contrasena incorrectos."; return; }
-  isEditor = (role === 'master' || role === 'pricing');
+  isEditor = false;
   editorPassword = password;
   editorName = email;
   editorRole = role;
   loginMethod = 'password';
-  try{ window.sessionStorage.setItem('aplus_session', JSON.stringify({ email, password })); }catch(e){}
+  try{ window.sessionStorage.setItem('aplus_session', JSON.stringify({ email, password, isEditor: false })); }catch(e){}
   showApp();
   await ensureDataLoaded();
   applyEditorUI();
@@ -594,7 +624,7 @@ async function restoreSession(){
     showGate('Tu sesion ya no es valida. Inicia sesion de nuevo.');
     return;
   }
-  isEditor = (role === 'master' || role === 'pricing');
+  isEditor = canEditRole(role) && !!saved.isEditor;
   editorPassword = saved.password;
   editorName = saved.email;
   editorRole = role;
