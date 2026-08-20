@@ -455,7 +455,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 let CATEGORIAS = [];
-const TIPOS_SERVICIO = ["FCL","LCL","RORO","BREAKBULK","AEREO","COURIER","TERRESTRE"];
+const TIPOS_SERVICIO = ["FCL","LCL","RORO","BREAKBULK","AEREO","COURIER","TERRESTRE","ADUANA"];
 
 let CAT_ACCENT = {};
 const CAT_PALETTE = ["#4C9BE0","#3FBF8F","#9C86F2","#8FC24C","#E88A3C","#E15A93","#D97757","#5FB3B3","#C9A15A","#7C9CF2","#E0A5C9"];
@@ -477,7 +477,8 @@ const TIPO_ACCENT = {
   "BREAKBULK": "#D97757",
   "AEREO": "#E15A93",
   "COURIER": "#E88A3C",
-  "TERRESTRE": "#8FC24C"
+  "TERRESTRE": "#8FC24C",
+  "ADUANA": "#5FB3B3"
 };
 
 let contactos = [];
@@ -879,7 +880,8 @@ const TIPO_LABEL = {
   RORO: "RO-RO",
   BREAKBULK: "Breakbulk",
   COURIER: "Courier",
-  TERRESTRE: "Terrestre"
+  TERRESTRE: "Terrestre",
+  ADUANA: "Corretaje Aduanal"
 };
 // columnas de cada grupo: Empresa, Origen, Destino, [especificas], Adicionales, Vigencia (siempre al final)
 // "keys" mapea cada columna a su campo de datos (null = columna no ordenable)
