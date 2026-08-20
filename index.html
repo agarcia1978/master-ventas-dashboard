@@ -235,10 +235,10 @@ body{
     <div style="color:var(--text-dim);font-size:13px;margin-top:8px" id="gateMsg">Inicia sesion con tu correo de A+ Logistics para ver el dashboard.</div>
   </div>
   <div id="loginEmailBox">
-    <input type="email" id="loginEmailInput" placeholder="Tu correo de A+ Logistics" style="width:240px" />
-    <button class="btn btn-primary" onclick="sendMagicLink()">Enviar enlace de acceso</button>
+    <input type="email" id="loginEmailInput" placeholder="Tu correo de A+ Logistics" style="width:200px" onkeydown="if(event.key==='Enter')attemptLogin()" />
+    <input type="password" id="loginPasswordInput" placeholder="Contrasena" style="width:140px" onkeydown="if(event.key==='Enter')attemptLogin()" />
+    <button class="btn btn-primary" onclick="attemptLogin()">Entrar</button>
     <span class="err" id="loginErr"></span>
-    <div id="loginSentMsg" style="display:none;font-size:12px;color:var(--text-dim);margin-top:6px">Revisa tu correo y haz clic en el enlace para entrar. Puede tardar un par de minutos.</div>
   </div>
   <div style="margin-top:10px">
     <a href="#" onclick="toggleLegacyPw();return false;" style="font-size:12px;color:var(--text-dim)">¿Problemas para entrar? Usar clave alterna</a>
@@ -424,6 +424,7 @@ body{
         </select>
       </div>
     </div>
+    <div class="field"><label>Contrasena inicial</label><input type="text" id="au_password" placeholder="Clave para que esta persona entre" /></div>
     <div class="err" id="adminUsersErr"></div>
     <div class="modal-actions" style="justify-content:flex-start">
       <button class="btn btn-primary" onclick="adminGrantAccessUI()">Dar acceso</button>
@@ -487,7 +488,7 @@ let dataLoaded = false;
 let editorPassword = "";
 let editorName = "";
 let editorRole = "";
-let loginMethod = ""; // 'email' (Supabase Auth individual) o 'legacy' (clave compartida)
+let loginMethod = ""; // 'password' (correo + contrasena individual) o 'legacy' (clave alterna de emergencia)
 
 function toast(msg){
   const t = document.getElementById('toast');
@@ -550,10 +551,9 @@ function applyEditorUI(){
 }
 
 async function doLogout(){
-  const wasEmail = loginMethod === 'email';
   isEditor = false; editorPassword = ""; editorRole = ""; editorName = ""; loginMethod = "";
+  try{ window.sessionStorage.removeItem('aplus_session'); }catch(e){}
   showGate();
-  if(wasEmail){ try{ await sb.auth.signOut(); }catch(e){} }
 }
 
 function toggleLegacyPw(){
@@ -561,47 +561,50 @@ function toggleLegacyPw(){
   box.style.display = box.style.display === 'none' ? 'block' : 'none';
 }
 
-async function sendMagicLink(){
+async function attemptLogin(){
   const email = document.getElementById('loginEmailInput').value.trim();
+  const password = document.getElementById('loginPasswordInput').value;
   const errEl = document.getElementById('loginErr');
-  const msgEl = document.getElementById('loginSentMsg');
   errEl.textContent = "";
-  msgEl.style.display = "none";
-  if(!email){ errEl.textContent = "Ingresa tu correo."; return; }
-  const redirectTo = window.location.href.split('#')[0].split('?')[0];
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
-  if(error){ errEl.textContent = "Error: " + error.message; return; }
-  msgEl.style.display = "block";
-}
-
-async function applySessionRole(session){
-  if(!session || !session.user || !session.user.email){ showGate(); return; }
-  const { data: role, error } = await sb.rpc('current_user_role');
-  if(error || !role){
-    showGate('Tu correo (' + session.user.email + ') aun no tiene acceso. Pidele a Alejandro que te lo habilite en "Administrar accesos".');
-    return;
-  }
+  if(!email || !password){ errEl.textContent = "Ingresa tu correo y tu contrasena."; return; }
+  const { data: role, error } = await sb.rpc('login_check', { p_email: email, p_password: password });
+  if(error || !role){ errEl.textContent = "Correo o contrasena incorrectos."; return; }
   isEditor = (role === 'master' || role === 'pricing');
-  editorPassword = "";
-  editorName = session.user.email;
+  editorPassword = password;
+  editorName = email;
   editorRole = role;
-  loginMethod = 'email';
+  loginMethod = 'password';
+  try{ window.sessionStorage.setItem('aplus_session', JSON.stringify({ email, password })); }catch(e){}
   showApp();
   await ensureDataLoaded();
   applyEditorUI();
-  toast('Bienvenido ' + roleLabel(role) + ': ' + session.user.email);
+  toast('Bienvenido ' + roleLabel(role) + ': ' + email);
 }
 
-sb.auth.onAuthStateChange((event, session) => {
-  if(event === 'SIGNED_IN' || event === 'INITIAL_SESSION'){
-    if(session) applySessionRole(session); else showGate();
-  } else if(event === 'SIGNED_OUT'){
-    if(loginMethod === 'email'){
-      isEditor = false; editorPassword = ""; editorRole = ""; editorName = ""; loginMethod = "";
-      showGate();
-    }
+async function restoreSession(){
+  let raw = null;
+  try{ raw = window.sessionStorage.getItem('aplus_session'); }catch(e){}
+  if(!raw){ showGate(); return; }
+  let saved = null;
+  try{ saved = JSON.parse(raw); }catch(e){}
+  if(!saved || !saved.email || !saved.password){ showGate(); return; }
+  const { data: role, error } = await sb.rpc('login_check', { p_email: saved.email, p_password: saved.password });
+  if(error || !role){
+    try{ window.sessionStorage.removeItem('aplus_session'); }catch(e){}
+    showGate('Tu sesion ya no es valida. Inicia sesion de nuevo.');
+    return;
   }
-});
+  isEditor = (role === 'master' || role === 'pricing');
+  editorPassword = saved.password;
+  editorName = saved.email;
+  editorRole = role;
+  loginMethod = 'password';
+  showApp();
+  await ensureDataLoaded();
+  applyEditorUI();
+}
+
+restoreSession();
 
 async function enterEditModeLegacy(){
   const pw = document.getElementById('pwInput').value;
@@ -626,6 +629,7 @@ async function enterEditModeLegacy(){
 function openAdminUsersModal(){
   document.getElementById('au_email').value = '';
   document.getElementById('au_role').value = 'pricing';
+  document.getElementById('au_password').value = '';
   document.getElementById('adminUsersErr').textContent = '';
   document.getElementById('adminUsersModalOverlay').classList.add('open');
   loadAdminUsersList();
@@ -656,6 +660,7 @@ function renderAdminUsersList(users){
           <option value="master" ${u.role==='master'?'selected':''}>Master</option>
         </select>
         <button class="btn" onclick="adminToggleActiveUI('${escJs(u.email)}', ${!u.active})" ${u.email === 'agarcia@apluslogistics.com.pa' ? 'disabled' : ''}>${u.active ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn" onclick="adminResetPasswordUI('${escJs(u.email)}')">Cambiar clave</button>
       </div>
     </div>
   `).join('');
@@ -663,14 +668,23 @@ function renderAdminUsersList(users){
 async function adminGrantAccessUI(){
   const email = document.getElementById('au_email').value.trim();
   const role = document.getElementById('au_role').value;
+  const initialPassword = document.getElementById('au_password').value;
   const errEl = document.getElementById('adminUsersErr');
   errEl.textContent = '';
   if(!email){ errEl.textContent = 'Ingresa un correo.'; return; }
-  const { error } = await sb.rpc('admin_grant_access', { p_email: email, p_role: role, p_password: editorPassword || null });
+  const { error } = await sb.rpc('admin_grant_access', { p_email: email, p_role: role, p_password: editorPassword || null, p_initial_password: initialPassword || null });
   if(error){ errEl.textContent = 'Error: ' + error.message; return; }
   document.getElementById('au_email').value = '';
+  document.getElementById('au_password').value = '';
   toast('Acceso otorgado a ' + email);
   loadAdminUsersList();
+}
+async function adminResetPasswordUI(email){
+  const nueva = window.prompt('Nueva contrasena para ' + email + ':');
+  if(!nueva) return;
+  const { error } = await sb.rpc('admin_set_password', { p_email: email, p_new_password: nueva, p_password: editorPassword || null });
+  if(error){ toast('Error: ' + error.message); return; }
+  toast('Contrasena actualizada para ' + email);
 }
 async function adminToggleActiveUI(email, active){
   const { error } = await sb.rpc('admin_set_active', { p_email: email, p_active: active, p_password: editorPassword || null });
@@ -1648,7 +1662,7 @@ async function init(){
   await Promise.all([loadContactos(), loadTarifas(), loadTarifarioUploads()]);
   renderTarifarioUploads();
 }
-// init() ahora se dispara desde applySessionRole() / enterEditModeLegacy() via ensureDataLoaded(),
+// init() ahora se dispara desde attemptLogin() / restoreSession() / enterEditModeLegacy() via ensureDataLoaded(),
 // una vez que hay una sesion valida. Antes de eso el gate de acceso bloquea la vista.
 </script>
 
