@@ -1428,6 +1428,33 @@ async function loadTarifarioUploads(){
   tarifarioUploads = data || [];
 }
 
+async function revisarTarifarios(){
+  if(editorRole !== 'master') return;
+  const btn = document.getElementById('revisarTarifariosBtn');
+  const prevLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Revisando...'; }
+  try{
+    const { data, error } = await sb.functions.invoke('revisar-tarifarios', { body: {} });
+    if(error){ toast('Error al revisar: ' + error.message); return; }
+    if(data && data.error){ toast('Error al revisar: ' + data.error); return; }
+    if(data && data.processed === 0){
+      toast(data.message || 'No hay tarifarios pendientes.');
+    } else {
+      const nRevisados = (data && data.revisados) ? data.revisados.length : 0;
+      const nFallidos = (data && data.fallidos) ? data.fallidos.length : 0;
+      let msg = nRevisados + ' tarifario(s) listo(s) para aprobar.';
+      if(nFallidos > 0) msg += ' ' + nFallidos + ' con problemas (ver notas).';
+      toast(msg);
+    }
+    await loadTarifarioUploads();
+    renderTarifarioUploads();
+  } catch(e){
+    toast('Error: ' + (e.message || e));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = prevLabel; }
+  }
+}
+
 const ESTADO_LABEL = {
   pendiente: 'Pendiente de revision',
   revision: 'Listo para aprobar',
@@ -1517,6 +1544,7 @@ function renderTarifarioUploads(){
       <div class="uploads-panel-head">
         <span class="title">Tarifarios subidos por pricing</span>
         <span class="count-tag">${activos.length} activos</span>
+        ${editorRole === 'master' ? `<button class="btn btn-primary" style="margin-left:auto" onclick="event.stopPropagation(); revisarTarifarios();" id="revisarTarifariosBtn">Revisar</button>` : ''}
       </div>
       <div class="uploads-panel-body">
         ${activosHtml || '<p style="font-size:12px;color:var(--text-dim)">No hay cargas pendientes en este momento.</p>'}
