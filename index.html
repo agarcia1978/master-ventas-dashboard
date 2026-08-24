@@ -1809,6 +1809,10 @@ function renderResultadoHeyJefe(a){
 
   const chip = (txt, color) => `<span style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border:1px solid ${color};color:${color};border-radius:5px;padding:3px 9px;margin:0 6px 6px 0">${esc(txt)}</span>`;
 
+  const notasEspeciales = (a.notas_especiales || []);
+  const notasLabels = {ley_6ta:'Aplica cargo de Ley 6ta (zona franca)', mercancia_peligrosa:'Mercancia peligrosa (UN Code, MSDS)', refrigerada:'Mercancia refrigerada (temperatura, perecedero)'};
+  const notasHtml = notasEspeciales.map(n => chip(notasLabels[n] || n, 'var(--gold)')).join('');
+
   const diagHtml = `
     <div class="row-card" style="grid-template-columns:1fr">
       <div>
@@ -1819,6 +1823,7 @@ function renderResultadoHeyJefe(a){
           ${chip('Incoterm: ' + (a.incoterm || 'no especificado'), 'var(--gold)')}
           ${a.es_solicitud_de_agente ? chip('Solicitud de agente', 'var(--gold)') : ''}
           ${a.completa ? chip('Informacion completa', '#3FBF8F') : chip('Faltan datos', 'var(--danger)')}
+          ${notasHtml}
         </div>
         <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px">${esc(a.resumen || '')}</div>
         <div style="font-size:12px;color:var(--text-dim)">
@@ -1832,16 +1837,10 @@ function renderResultadoHeyJefe(a){
   const recibidos = (a.campos_recibidos || []).map(c => `<div style="font-size:13px;margin-bottom:4px">&#10003; ${esc(c)}</div>`).join('') || '<div style="font-size:13px;color:var(--text-dim)">Ninguno detectado</div>';
   const faltantes = (a.campos_faltantes || []).map(c => `<div style="font-size:13px;margin-bottom:4px;color:var(--danger)">&#10007; ${esc(c)}</div>`).join('') || '<div style="font-size:13px;color:#3FBF8F">Ningun dato faltante detectado</div>';
 
-  const notasEspeciales = (a.notas_especiales || []);
-  const notasLabels = {ley_6ta:'Zona franca / Ley 6ta', mercancia_peligrosa:'Mercancia peligrosa (UN Code, MSDS)', refrigerada:'Mercancia refrigerada (temperatura, perecedero)'};
-  const notasHtml = notasEspeciales.length
-    ? notasEspeciales.map(n => chip(notasLabels[n] || n, 'var(--danger)')).join('')
-    : '';
-
   const checklistHtml = `
     <div class="row-card" style="grid-template-columns:1fr 1fr">
       <div><div class="row-tag">Datos recibidos</div>${recibidos}</div>
-      <div><div class="row-tag">Datos faltantes para cotizar</div>${faltantes}${notasHtml ? `<div style="margin-top:8px">${notasHtml}</div>` : ''}</div>
+      <div><div class="row-tag">Datos faltantes para cotizar</div>${faltantes}</div>
     </div>`;
 
   // Sugerencias de tarifario propio
