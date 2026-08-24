@@ -1751,7 +1751,14 @@ async function analizarCorreoHeyJefe(){
     if(hjArchivoBase64){ body.archivo_base64 = hjArchivoBase64; body.archivo_mime = hjArchivoMime; }
     const { data, error } = await sb.functions.invoke('hey-jefe-analyze', { body });
     if(error){
-      toast('Error al analizar: ' + error.message);
+      let detalle = error.message || 'Error desconocido';
+      if(error.context && typeof error.context.json === 'function'){
+        try{
+          const errBody = await error.context.clone().json();
+          if(errBody && errBody.error) detalle = errBody.error;
+        }catch(_e){}
+      }
+      toast('Error al analizar: ' + detalle);
       return;
     }
     if(data && data.error){
