@@ -303,7 +303,8 @@ body{
       <label class="btn" for="hj_archivo" style="margin:0">Adjuntar archivo (PDF/imagen)</label>
       <input type="file" id="hj_archivo" accept=".pdf,.png,.jpg,.jpeg" style="max-width:260px" onchange="onHeyJefeArchivoChange()" />
       <span class="count-tag" id="hj_archivoNombre"></span>
-      <button class="btn btn-primary" id="hj_analizarBtn" onclick="analizarCorreoHeyJefe()" style="margin-left:auto">Analizar</button>
+      <button class="btn" id="hj_nuevaBtn" onclick="nuevaConsultaHeyJefe()" style="margin-left:auto">Nueva consulta</button>
+      <button class="btn btn-primary" id="hj_analizarBtn" onclick="analizarCorreoHeyJefe()">Analizar</button>
     </div>
     <div id="hj_resultado"></div>
     <div class="empty" id="hj_empty">Pega un correo o adjunta un archivo y presiona Analizar.</div>
@@ -1737,6 +1738,17 @@ function onHeyJefeArchivoChange(){
   };
   reader.onerror = () => { toast('No se pudo leer el archivo.'); hjArchivoBase64 = null; hjArchivoMime = null; };
   reader.readAsDataURL(file);
+}
+
+function nuevaConsultaHeyJefe(){
+  document.getElementById('hj_texto').value = '';
+  document.getElementById('hj_archivo').value = '';
+  document.getElementById('hj_archivoNombre').textContent = '';
+  hjArchivoBase64 = null;
+  hjArchivoMime = null;
+  document.getElementById('hj_resultado').innerHTML = '';
+  document.getElementById('hj_empty').style.display = '';
+  document.getElementById('hj_texto').focus();
 }
 
 async function analizarCorreoHeyJefe(){
