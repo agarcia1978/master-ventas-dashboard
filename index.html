@@ -1874,7 +1874,15 @@ function renderResultadoHeyJefe(a){
   const info = manejoServicioInfo(a);
   let manejosHtml;
   if(info){
-    const rows = manejosBase.filter(m => m.destinatario === info.destinatario && m.servicio === info.servicio).sort((x,y) => (x.orden||0)-(y.orden||0));
+    let rows = manejosBase.filter(m => m.destinatario === info.destinatario && m.servicio === info.servicio).sort((x,y) => (x.orden||0)-(y.orden||0));
+    rows = rows.filter(m => {
+      const c = m.concepto || '';
+      if(c.includes('Ley 6ta')) return (a.notas_especiales||[]).includes('ley_6ta');
+      if(c.includes('Certificación de Cheque')) return a.incoterm === 'DDP';
+      if(c.includes('Confección de liquidación')) return a.incoterm === 'DDP' || !!a.requiere_liquidacion;
+      if(c.includes('COLLECT FEE')) return !!a.collect_flete;
+      return m.valor !== '-';
+    });
     manejosHtml = rows.length
       ? `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Manejos base (${esc(info.servicio)}) que se deben incluir ademas del flete:</div>` +
         rows.map(m => `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>${esc(m.concepto)}</span><span style="color:var(--text-dim)">${esc(m.valor)}</span></div>`).join('')
