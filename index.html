@@ -223,6 +223,7 @@ body{
   <div class="navtabs" id="navTabs" style="display:none">
     <button class="navtab active" id="navContactos" onclick="switchTab('contactos')">Directorio</button>
     <button class="navtab" id="navTarifas" onclick="switchTab('tarifarios')">Tarifarios</button>
+    <button class="navtab" id="navHeyJefe" onclick="switchTab('heyjefe')">Hey, Jefe!</button>
   </div>
   <button class="btn" id="adminUsersBtn" style="display:none" onclick="openAdminUsersModal()">Administrar accesos</button>
   <span class="edit-toggle" id="editToggleBtn" style="display:none;cursor:default"></span>
@@ -292,6 +293,20 @@ body{
     <div id="tarifarioUploadsPanel"></div>
     <div id="bodyTarifas"></div>
     <div class="empty" id="emptyTarifas" style="display:none">Aun no hay tarifarios cargados. Entra en modo edicion para agregar.</div>
+  </div>
+
+  <div id="viewHeyJefe" style="display:none">
+    <h1 class="page-title">Hey, Jefe!</h1>
+    <p class="page-sub">Pega el correo o solicitud del cliente/agente. El sistema identifica el tipo de servicio, el Incoterm y si faltan datos para cotizar, y sugiere a quien contactar y que manejos aplican.</p>
+    <div class="field"><label>Correo o solicitud del cliente/agente</label><textarea id="hj_texto" placeholder="Pega aqui el texto del correo..." style="min-height:150px"></textarea></div>
+    <div class="toolbar" style="margin-bottom:20px">
+      <label class="btn" for="hj_archivo" style="margin:0">Adjuntar archivo (PDF/imagen)</label>
+      <input type="file" id="hj_archivo" accept=".pdf,.png,.jpg,.jpeg" style="max-width:260px" onchange="onHeyJefeArchivoChange()" />
+      <span class="count-tag" id="hj_archivoNombre"></span>
+      <button class="btn btn-primary" id="hj_analizarBtn" onclick="analizarCorreoHeyJefe()" style="margin-left:auto">Analizar</button>
+    </div>
+    <div id="hj_resultado"></div>
+    <div class="empty" id="hj_empty">Pega un correo o adjunta un archivo y presiona Analizar.</div>
   </div>
 
 </div>
@@ -485,6 +500,11 @@ let contactos = [];
 let tarifas = [];
 let archivos = [];
 let tarifarioUploads = [];
+let manejosBase = [];
+let manejosAcarreos = [];
+let manejosGastosPortuarios = [];
+let hjArchivoBase64 = null;
+let hjArchivoMime = null;
 let isEditor = false;
 let loggedIn = false;
 let dataLoaded = false;
@@ -735,8 +755,10 @@ async function adminChangeRoleUI(email, role){
 function switchTab(tab){
   document.getElementById('viewContactos').style.display = tab === 'contactos' ? '' : 'none';
   document.getElementById('viewTarifarios').style.display = tab === 'tarifarios' ? '' : 'none';
+  document.getElementById('viewHeyJefe').style.display = tab === 'heyjefe' ? '' : 'none';
   document.getElementById('navContactos').classList.toggle('active', tab === 'contactos');
   document.getElementById('navTarifas').classList.toggle('active', tab === 'tarifarios');
+  document.getElementById('navHeyJefe').classList.toggle('active', tab === 'heyjefe');
 }
 
 function esc(s){
@@ -1688,12 +1710,186 @@ async function loadArchivos(){
   archivos = data || [];
 }
 
+async function loadManejos(){
+  const [r1, r2, r3] = await Promise.all([
+    sb.from('manejos_base').select('*'),
+    sb.from('manejos_acarreos').select('*'),
+    sb.from('manejos_gastos_portuarios').select('*'),
+  ]);
+  if(r1.error) console.error('manejos_base', r1.error);
+  if(r2.error) console.error('manejos_acarreos', r2.error);
+  if(r3.error) console.error('manejos_gastos_portuarios', r3.error);
+  manejosBase = r1.data || [];
+  manejosAcarreos = r2.data || [];
+  manejosGastosPortuarios = r3.data || [];
+}
+
+function onHeyJefeArchivoChange(){
+  const input = document.getElementById('hj_archivo');
+  const label = document.getElementById('hj_archivoNombre');
+  const file = input.files[0];
+  if(!file){ hjArchivoBase64 = null; hjArchivoMime = null; label.textContent = ''; return; }
+  label.textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = () => {
+    hjArchivoBase64 = reader.result.split(',')[1];
+    hjArchivoMime = file.type;
+  };
+  reader.onerror = () => { toast('No se pudo leer el archivo.'); hjArchivoBase64 = null; hjArchivoMime = null; };
+  reader.readAsDataURL(file);
+}
+
+async function analizarCorreoHeyJefe(){
+  const texto = document.getElementById('hj_texto').value.trim();
+  if(!texto && !hjArchivoBase64){ toast('Pega el correo o adjunta un archivo.'); return; }
+  const btn = document.getElementById('hj_analizarBtn');
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = 'Analizando...';
+  try{
+    const body = { texto_correo: texto };
+    if(hjArchivoBase64){ body.archivo_base64 = hjArchivoBase64; body.archivo_mime = hjArchivoMime; }
+    const { data, error } = await sb.functions.invoke('hey-jefe-analyze', { body });
+    if(error){
+      toast('Error al analizar: ' + error.message);
+      return;
+    }
+    if(data && data.error){
+      toast(data.error);
+      return;
+    }
+    renderResultadoHeyJefe(data);
+  } catch(e){
+    toast('Error: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+  }
+}
+
+function manejoServicioInfo(a){
+  const modoMap = {AEREO:'Aéreo', LCL:'LCL', FCL:'FCL'};
+  if(a.es_solicitud_de_agente){
+    const modo = modoMap[a.tipo_servicio];
+    if(!modo || (a.incoterm !== 'DAP' && a.incoterm !== 'DDP')) return null;
+    return { destinatario:'agente', servicio: `Agente ${a.incoterm} ${modo}` };
+  }
+  const dirMap = {importacion:'Importación', exportacion:'Exportación'};
+  const dirLabel = dirMap[a.direccion];
+  if(!dirLabel) return null;
+  if(a.tipo_servicio === 'FCL') return { destinatario:'cliente', servicio: `FCL ${dirLabel}` };
+  if(a.tipo_servicio === 'LCL') return { destinatario:'cliente', servicio: `LCL ${dirLabel}` };
+  if(a.tipo_servicio === 'COURIER') return { destinatario:'cliente', servicio: `${dirLabel} Aérea Courier` };
+  if(a.tipo_servicio === 'AEREO') return { destinatario:'cliente', servicio: `${dirLabel} Aérea Carga` };
+  return null;
+}
+
+function renderResultadoHeyJefe(a){
+  document.getElementById('hj_empty').style.display = 'none';
+  const cont = document.getElementById('hj_resultado');
+
+  const chip = (txt, color) => `<span style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border:1px solid ${color};color:${color};border-radius:5px;padding:3px 9px;margin:0 6px 6px 0">${esc(txt)}</span>`;
+
+  const diagHtml = `
+    <div class="row-card" style="grid-template-columns:1fr">
+      <div>
+        <div class="row-tag">Diagnostico</div>
+        <div style="margin-bottom:10px">
+          ${chip(a.tipo_servicio || 'No identificado', 'var(--gold)')}
+          ${chip((a.direccion||'no_identificado').replace('_',' '), 'var(--gold)')}
+          ${chip('Incoterm: ' + (a.incoterm || 'no especificado'), 'var(--gold)')}
+          ${a.es_solicitud_de_agente ? chip('Solicitud de agente', 'var(--gold)') : ''}
+          ${a.completa ? chip('Informacion completa', '#3FBF8F') : chip('Faltan datos', 'var(--danger)')}
+        </div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px">${esc(a.resumen || '')}</div>
+        <div style="font-size:12px;color:var(--text-dim)">
+          <b style="color:var(--text)">Origen:</b> ${esc(a.origen || '-')} &nbsp; | &nbsp;
+          <b style="color:var(--text)">Destino:</b> ${esc(a.destino || '-')} &nbsp; | &nbsp;
+          <b style="color:var(--text)">Cliente/remitente:</b> ${esc(a.cliente_o_remitente || '-')}
+        </div>
+      </div>
+    </div>`;
+
+  const recibidos = (a.campos_recibidos || []).map(c => `<div style="font-size:13px;margin-bottom:4px">&#10003; ${esc(c)}</div>`).join('') || '<div style="font-size:13px;color:var(--text-dim)">Ninguno detectado</div>';
+  const faltantes = (a.campos_faltantes || []).map(c => `<div style="font-size:13px;margin-bottom:4px;color:var(--danger)">&#10007; ${esc(c)}</div>`).join('') || '<div style="font-size:13px;color:#3FBF8F">Ningun dato faltante detectado</div>';
+
+  const notasEspeciales = (a.notas_especiales || []);
+  const notasLabels = {ley_6ta:'Zona franca / Ley 6ta', mercancia_peligrosa:'Mercancia peligrosa (UN Code, MSDS)', refrigerada:'Mercancia refrigerada (temperatura, perecedero)'};
+  const notasHtml = notasEspeciales.length
+    ? notasEspeciales.map(n => chip(notasLabels[n] || n, 'var(--danger)')).join('')
+    : '';
+
+  const checklistHtml = `
+    <div class="row-card" style="grid-template-columns:1fr 1fr">
+      <div><div class="row-tag">Datos recibidos</div>${recibidos}</div>
+      <div><div class="row-tag">Datos faltantes para cotizar</div>${faltantes}${notasHtml ? `<div style="margin-top:8px">${notasHtml}</div>` : ''}</div>
+    </div>`;
+
+  // Sugerencias de tarifario propio
+  const norm = s => (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const origenN = norm(a.origen), destinoN = norm(a.destino);
+  const tarifasMatch = tarifas.filter(t => {
+    if(a.tipo_servicio && t.tipo_servicio !== a.tipo_servicio) return false;
+    const tOrigen = norm(t.origen), tDestino = norm(t.destino);
+    const origenOk = !origenN || tOrigen.includes(origenN) || origenN.includes(tOrigen);
+    const destinoOk = !destinoN || tDestino.includes(destinoN) || destinoN.includes(tDestino);
+    return origenOk && destinoOk;
+  }).slice(0, 8);
+
+  let tarifarioHtml;
+  if(tarifasMatch.length){
+    tarifarioHtml = tarifasMatch.map(t => `
+      <div style="font-size:13px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+        <b>${esc(t.proveedor)}</b> — ${esc(t.origen)} &rarr; ${esc(t.destino)}
+      </div>`).join('');
+  } else {
+    tarifarioHtml = `<div style="font-size:13px;color:var(--text-dim)">No se encontro un tarifario propio para esta ruta. Revisa la sugerencia de contacto para solicitar tarifa.</div>`;
+  }
+
+  // Contactos sugeridos
+  let contactosHtml = '';
+  if(a.categoria_contacto_sugerida){
+    const matches = contactos.filter(c => c.categoria === a.categoria_contacto_sugerida).slice(0, 6);
+    contactosHtml = matches.length
+      ? matches.map(c => `<div style="font-size:13px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)"><b>${esc(c.empresa)}</b> ${c.nombre ? '— ' + esc(c.nombre) : ''}${c.correo ? '<br>' + esc(c.correo) : ''}${c.telefono ? ' &nbsp;' + esc(c.telefono) : ''}</div>`).join('')
+      : `<div style="font-size:13px;color:var(--text-dim)">No hay contactos cargados en la categoria "${esc(a.categoria_contacto_sugerida)}".</div>`;
+  } else {
+    contactosHtml = `<div style="font-size:13px;color:var(--text-dim)">No aplica sugerencia de contacto para esta solicitud.</div>`;
+  }
+
+  const sugerenciasHtml = `
+    <div class="row-card" style="grid-template-columns:1fr 1fr">
+      <div><div class="row-tag">Tarifario propio (posibles coincidencias)</div>${tarifarioHtml}</div>
+      <div><div class="row-tag">${a.categoria_contacto_sugerida ? 'Contactar en directorio: ' + esc(a.categoria_contacto_sugerida) : 'A quien contactar'}</div>${contactosHtml}</div>
+    </div>`;
+
+  // Manejos aplicables
+  const info = manejoServicioInfo(a);
+  let manejosHtml;
+  if(info){
+    const rows = manejosBase.filter(m => m.destinatario === info.destinatario && m.servicio === info.servicio).sort((x,y) => (x.orden||0)-(y.orden||0));
+    manejosHtml = rows.length
+      ? `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Manejos base (${esc(info.servicio)}) que se deben incluir ademas del flete:</div>` +
+        rows.map(m => `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>${esc(m.concepto)}</span><span style="color:var(--text-dim)">${esc(m.valor)}</span></div>`).join('')
+      : `<div style="font-size:13px;color:var(--text-dim)">No hay manejos base cargados para "${esc(info.servicio)}".</div>`;
+  } else {
+    manejosHtml = `<div style="font-size:13px;color:var(--text-dim)">No se pudo determinar el tipo de manejo aplicable (verifica tipo de servicio / Incoterm detectado).</div>`;
+  }
+
+  const manejosCardHtml = `
+    <div class="row-card" style="grid-template-columns:1fr">
+      <div><div class="row-tag">Manejos aplicables</div>${manejosHtml}</div>
+    </div>`;
+
+  cont.innerHTML = diagHtml + checklistHtml + sugerenciasHtml + manejosCardHtml;
+}
+
 async function init(){
   fillSelect('filterTipo', TIPOS_SERVICIO, true, 'Todos los tipos');
   fillSelect('t_tipo_servicio', TIPOS_SERVICIO, false);
   fillSelect('ut_tipo_servicio', TIPOS_SERVICIO, true, 'No estoy seguro / mixto');
   await loadArchivos();
-  await Promise.all([loadContactos(), loadTarifas(), loadTarifarioUploads()]);
+  await Promise.all([loadContactos(), loadTarifas(), loadTarifarioUploads(), loadManejos()]);
   renderTarifarioUploads();
 }
 // init() ahora se dispara desde attemptLogin() / restoreSession() / enterEditModeLegacy() via ensureDataLoaded(),
