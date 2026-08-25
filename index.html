@@ -1818,8 +1818,11 @@ function manejoServicioInfo(a){
   const modoMap = {AEREO:'Aéreo', LCL:'LCL', FCL:'FCL'};
   if(a.es_solicitud_de_agente){
     const modo = modoMap[a.tipo_servicio];
-    if(!modo || (a.incoterm !== 'DAP' && a.incoterm !== 'DDP')) return null;
-    return { destinatario:'agente', servicio: `Agente ${a.incoterm} ${modo}` };
+    if(modo && (a.incoterm === 'DAP' || a.incoterm === 'DDP')){
+      return { destinatario:'agente', servicio: `Agente ${a.incoterm} ${modo}` };
+    }
+    // Si el agente solicita bajo otro incoterm (EXW, FOB, FCA, etc.), los manejos
+    // aplicables son los mismos que para un cliente directo segun direccion/servicio.
   }
   const dirMap = {importacion:'Importación', exportacion:'Exportación'};
   const dirLabel = dirMap[a.direccion];
