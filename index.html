@@ -1986,10 +1986,16 @@ function renderResultadoHeyJefe(a){
     tarifarioHtml = `<div style="font-size:13px;color:var(--text-dim)">No se encontro un tarifario propio para esta ruta. Revisa la sugerencia de contacto para solicitar tarifa.</div>`;
   }
 
-  // Contactos sugeridos
+  // Contactos sugeridos: un solo contacto por empresa, siempre el principal si existe
   let contactosHtml = '';
   if(a.categoria_contacto_sugerida){
-    const matches = contactos.filter(c => c.categoria === a.categoria_contacto_sugerida).slice(0, 6);
+    const filtrados = contactos.filter(c => c.categoria === a.categoria_contacto_sugerida);
+    const porEmpresa = {};
+    filtrados.forEach(c => {
+      const actual = porEmpresa[c.empresa];
+      if(!actual || (c.es_principal && !actual.es_principal)) porEmpresa[c.empresa] = c;
+    });
+    const matches = Object.values(porEmpresa).slice(0, 6);
     contactosHtml = matches.length
       ? matches.map(c => `<div style="font-size:13px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)"><b>${esc(c.empresa)}</b> ${c.nombre ? '— ' + esc(c.nombre) : ''}${c.correo ? '<br>' + esc(c.correo) : ''}${c.telefono ? ' &nbsp;' + esc(c.telefono) : ''}</div>`).join('')
       : `<div style="font-size:13px;color:var(--text-dim)">No hay contactos cargados en la categoria "${esc(a.categoria_contacto_sugerida)}".</div>`;
