@@ -1868,6 +1868,58 @@ function manejoServicioInfo(a){
   return null;
 }
 
+function normalizarTexto(s){
+  return (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+
+function normalizarZonaPuerto(puertoFcl){
+  const p = normalizarTexto(puertoFcl);
+  if(!p) return null;
+  if(p.includes('rodman')) return 'rodman';
+  if(p.includes('manzanillo')) return 'manzanillo';
+  if(p.includes('cct') || p.includes('colon container')) return 'cct';
+  if(p.includes('cristob')) return 'cristobal';
+  if(p.includes('balboa')) return 'balboa';
+  return null;
+}
+
+function matchAcarreo(a){
+  if(!a.requiere_entrega_domicilio && !a.requiere_recogida_domicilio) return null;
+  const zonaCliente = normalizarTexto(a.zona_entrega_recogida);
+  if(!zonaCliente) return null;
+  const tipo = (a.tipo_servicio === 'FCL') ? 'contenedor' : 'camion';
+  let zonaPuerto = null;
+  if(tipo === 'contenedor'){
+    zonaPuerto = normalizarZonaPuerto(a.puerto_fcl);
+  } else if(a.tipo_servicio === 'LCL'){
+    zonaPuerto = 'zona libre';
+  } else {
+    zonaPuerto = 'panama';
+  }
+  const candidatos = manejosAcarreos.filter(m => m.tipo === tipo);
+  const match = candidatos.find(m => {
+    const desde = normalizarTexto(m.desde), hasta = normalizarTexto(m.hasta);
+    return (zonaPuerto && desde.includes(zonaPuerto) && hasta.includes(zonaCliente)) ||
+           (zonaPuerto && hasta.includes(zonaPuerto) && desde.includes(zonaCliente)) ||
+           (!zonaPuerto && (desde.includes(zonaCliente) || hasta.includes(zonaCliente)));
+  });
+  return { tipo, zonaCliente: a.zona_entrega_recogida, zonaPuerto, row: match || null };
+}
+
+function matchGastosPortuarios(a){
+  if(a.tipo_servicio !== 'FCL') return null;
+  const naviera = normalizarTexto(a.naviera);
+  const puerto = normalizarTexto(a.puerto_fcl);
+  if(!naviera && !puerto) return null;
+  const row = manejosGastosPortuarios.find(m => {
+    const mN = normalizarTexto(m.naviera), mP = normalizarTexto(m.puerto);
+    const navieraOk = naviera && (mN.includes(naviera) || naviera.includes(mN));
+    const puertoOk = puerto && (mP.includes(puerto) || puerto.includes(mP));
+    return navieraOk && puertoOk;
+  });
+  return row || null;
+}
+
 function renderResultadoHeyJefe(a){
   document.getElementById('hj_empty').style.display = 'none';
   const cont = document.getElementById('hj_resultado');
@@ -1887,6 +1939,10 @@ function renderResultadoHeyJefe(a){
           ${chip((a.direccion||'no_identificado').replace('_',' '), 'var(--gold)')}
           ${chip('Incoterm: ' + (a.incoterm || 'no especificado'), 'var(--gold)')}
           ${a.es_solicitud_de_agente ? chip('Solicitud de agente', 'var(--gold)') : ''}
+          ${a.naviera ? chip('Naviera: ' + a.naviera, 'var(--gold)') : ''}
+          ${a.puerto_fcl ? chip('Puerto: ' + a.puerto_fcl, 'var(--gold)') : ''}
+          ${a.requiere_entrega_domicilio ? chip('Entrega a domicilio' + (a.zona_entrega_recogida ? ': ' + a.zona_entrega_recogida : ''), 'var(--gold)') : ''}
+          ${a.requiere_recogida_domicilio ? chip('Recogida a domicilio' + (a.zona_entrega_recogida ? ': ' + a.zona_entrega_recogida : ''), 'var(--gold)') : ''}
           ${a.completa ? chip('Informacion completa', '#3FBF8F') : chip('Faltan datos', 'var(--danger)')}
           ${notasHtml}
         </div>
@@ -1972,7 +2028,46 @@ function renderResultadoHeyJefe(a){
       <div><div class="row-tag">Manejos aplicables</div>${manejosHtml}</div>
     </div>`;
 
-  cont.innerHTML = diagHtml + checklistHtml + sugerenciasHtml + manejosCardHtml;
+  // Acarreo (entrega o recogida a domicilio)
+  let acarreoHtml = '';
+  if(a.requiere_entrega_domicilio || a.requiere_recogida_domicilio){
+    const acarreoInfo = matchAcarreo(a);
+    let bodyHtml;
+    if(acarreoInfo && acarreoInfo.row){
+      const r = acarreoInfo.row;
+      bodyHtml = `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${esc(r.desde)} &rarr; ${esc(r.hasta)}${r.transportista ? ' ('+esc(r.transportista)+')' : ''}</span><span style="color:var(--text-dim)">$${Number(r.venta).toFixed(2)}</span></div>`;
+    } else {
+      bodyHtml = `<div style="font-size:13px;color:var(--text-dim)">Se detecto solicitud de ${a.requiere_entrega_domicilio ? 'entrega' : 'recogida'} a domicilio${a.zona_entrega_recogida ? ' en ' + esc(a.zona_entrega_recogida) : ''}, pero no se pudo determinar la tarifa de acarreo (verifica zona / puerto / naviera).</div>`;
+    }
+    const tipoLabel = a.tipo_servicio === 'FCL' ? 'Contenedor' : 'Camion';
+    acarreoHtml = `
+      <div class="row-card" style="grid-template-columns:1fr">
+        <div><div class="row-tag">Acarreo (${tipoLabel}) — ${a.requiere_entrega_domicilio ? 'Entrega' : 'Recogida'}${a.zona_entrega_recogida ? ' en ' + esc(a.zona_entrega_recogida) : ''}</div>${bodyHtml}</div>
+      </div>`;
+  }
+
+  // Gastos portuarios (solo servicios FCL)
+  let portuariosHtml = '';
+  if(a.tipo_servicio === 'FCL'){
+    const gp = matchGastosPortuarios(a);
+    let bodyHtml;
+    if(gp){
+      const items = [`Gastos de Puerto — $${Number(gp.gastos_puerto_venta).toFixed(2)}`];
+      if(a.direccion === 'exportacion'){
+        if(gp.vgm_venta != null) items.push(`VGM — $${Number(gp.vgm_venta).toFixed(2)}`);
+        if(gp.receipt_delivery_venta != null) items.push(`Receipt Delivery — $${Number(gp.receipt_delivery_venta).toFixed(2)}`);
+      }
+      bodyHtml = items.map(i => `<div style="font-size:13px;margin-bottom:4px">${esc(i)}</div>`).join('');
+    } else {
+      bodyHtml = `<div style="font-size:13px;color:var(--text-dim)">Servicio FCL detectado, pero no se pudo determinar naviera/puerto para calcular los gastos portuarios.</div>`;
+    }
+    portuariosHtml = `
+      <div class="row-card" style="grid-template-columns:1fr">
+        <div><div class="row-tag">Gastos portuarios${gp ? ' ('+esc(gp.naviera)+' — '+esc(gp.puerto)+')' : ''}</div>${bodyHtml}</div>
+      </div>`;
+  }
+
+  cont.innerHTML = diagHtml + checklistHtml + sugerenciasHtml + manejosCardHtml + acarreoHtml + portuariosHtml;
 }
 
 async function init(){
