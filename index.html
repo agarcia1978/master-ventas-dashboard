@@ -1897,11 +1897,12 @@ function matchAcarreo(a){
     zonaPuerto = 'panama';
   }
   const candidatos = manejosAcarreos.filter(m => m.tipo === tipo);
+  const contains = (x, y) => !!x && !!y && (x.includes(y) || y.includes(x));
   const match = candidatos.find(m => {
     const desde = normalizarTexto(m.desde), hasta = normalizarTexto(m.hasta);
-    return (zonaPuerto && desde.includes(zonaPuerto) && hasta.includes(zonaCliente)) ||
-           (zonaPuerto && hasta.includes(zonaPuerto) && desde.includes(zonaCliente)) ||
-           (!zonaPuerto && (desde.includes(zonaCliente) || hasta.includes(zonaCliente)));
+    return (zonaPuerto && contains(desde, zonaPuerto) && contains(hasta, zonaCliente)) ||
+           (zonaPuerto && contains(hasta, zonaPuerto) && contains(desde, zonaCliente)) ||
+           (!zonaPuerto && (contains(desde, zonaCliente) || contains(hasta, zonaCliente)));
   });
   return { tipo, zonaCliente: a.zona_entrega_recogida, zonaPuerto, row: match || null };
 }
