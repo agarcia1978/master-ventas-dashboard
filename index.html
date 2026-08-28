@@ -1552,7 +1552,9 @@ function renderTarifarioUploads(){
           <button class="btn" onclick="rechazarTarifarioUpload(${u.id})">Rechazar</button>
         </div>` : `<div class="upload-resumen">Solo el usuario master puede aprobar o rechazar esta carga.</div>`}`;
     } else if(u.estado === 'pendiente'){
-      extra = `<div class="upload-resumen">Esperando a que Claude lo revise.</div>`;
+      extra = u.notas
+        ? `<div class="upload-resumen" style="color:var(--danger)">${esc(u.notas)}</div><div class="upload-resumen">Aun esperando a que Claude lo revise (intentos previos fallaron, ver nota arriba).</div>`
+        : `<div class="upload-resumen">Esperando a que Claude lo revise.</div>`;
     } else if(u.notas){
       extra = `<div class="upload-resumen">${esc(u.notas)}</div>`;
     }
