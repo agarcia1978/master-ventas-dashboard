@@ -2013,9 +2013,21 @@ function renderResultadoHeyJefe(a){
 
   // Manejos aplicables: base + acarreo + gastos portuarios, todo en una sola lista
   const info = manejoServicioInfo(a);
+  const esZonaFranca = (a.notas_especiales || []).includes('ley_6ta');
   let manejosRows = [];
   if(info){
-    const rows = manejosBase.filter(m => m.destinatario === info.destinatario && m.servicio === info.servicio).sort((x,y) => (x.orden||0)-(y.orden||0));
+    const valorAplica = v => {
+      if(v == null) return false;
+      const t = String(v).trim();
+      if(t === '' || t === '-' || t === '\u2014') return false;
+      if(/^\$?0(\.00)?$/.test(t)) return false;
+      return true;
+    };
+    let rows = manejosBase.filter(m => m.destinatario === info.destinatario && m.servicio === info.servicio && valorAplica(m.valor)).sort((x,y) => (x.orden||0)-(y.orden||0));
+    if(esZonaFranca){
+      // Si la carga sale de una zona franca, no lleva tramite de aduana (confeccion de liquidacion)
+      rows = rows.filter(m => !norm(m.concepto).includes('confeccion de liquidacion'));
+    }
     manejosRows = rows.map(m => `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>${esc(m.concepto)}</span><span style="color:var(--text-dim)">${esc(m.valor)}</span></div>`);
   }
 
