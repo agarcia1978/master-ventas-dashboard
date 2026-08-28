@@ -2024,10 +2024,17 @@ function renderResultadoHeyJefe(a){
       return true;
     };
     let rows = manejosBase.filter(m => m.destinatario === info.destinatario && m.servicio === info.servicio && valorAplica(m.valor)).sort((x,y) => (x.orden||0)-(y.orden||0));
-    if(esZonaFranca){
-      // Si la carga sale de una zona franca, no lleva tramite de aduana (confeccion de liquidacion)
-      rows = rows.filter(m => !norm(m.concepto).includes('confeccion de liquidacion'));
-    }
+    // Confeccion de liquidacion: solo aplica en DDP o si se solicita expresamente el tramite de aduana;
+    // si la carga sale/llega de una zona franca, nunca aplica (tiene prioridad sobre requiere_liquidacion)
+    rows = rows.filter(m => {
+      if(norm(m.concepto).includes('confeccion de liquidacion')) return !esZonaFranca && a.requiere_liquidacion === true;
+      return true;
+    });
+    // Collect Fee: solo aplica si la solicitud indica que debemos cobrar el flete de la importacion
+    rows = rows.filter(m => {
+      if(norm(m.concepto).includes('collect fee')) return a.collect_flete === true;
+      return true;
+    });
     manejosRows = rows.map(m => `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>${esc(m.concepto)}</span><span style="color:var(--text-dim)">${esc(m.valor)}</span></div>`);
   }
 
