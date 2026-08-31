@@ -1558,9 +1558,12 @@ function renderTarifarioUploads(){
           <button class="btn" onclick="rechazarTarifarioUpload(${u.id})">Rechazar</button>
         </div>` : `<div class="upload-resumen">Solo el usuario master puede aprobar o rechazar esta carga.</div>`}`;
     } else if(u.estado === 'pendiente'){
-      extra = u.notas
+      extra = (u.notas
         ? `<div class="upload-resumen" style="color:var(--danger)">${esc(u.notas)}</div><div class="upload-resumen">Aun esperando a que Claude lo revise (intentos previos fallaron, ver nota arriba).</div>`
-        : `<div class="upload-resumen">Esperando a que Claude lo revise.</div>`;
+        : `<div class="upload-resumen">Esperando a que Claude lo revise.</div>`)
+        + (editorRole === 'master' ? `<div class="upload-actions">
+          <button class="btn" onclick="eliminarTarifarioPendiente(${u.id})">Eliminar carga</button>
+        </div>` : '');
     } else if(u.notas){
       extra = `<div class="upload-resumen">${esc(u.notas)}</div>`;
     }
@@ -1619,6 +1622,19 @@ async function rechazarTarifarioUpload(id){
   const {error} = await sb.rpc('rechazar_tarifario_upload', {p_password: editorPassword, p_id: id, p_editor: editorName, p_motivo: motivo});
   if(error){ toast('Error: ' + error.message); return; }
   toast('Carga rechazada');
+  await loadTarifarioUploads();
+  renderTarifarioUploads();
+}
+
+// Permite borrar una carga que aun esta en estado "pendiente" (antes de que Claude la revise),
+// por ejemplo si se subio por error o el archivo esta duplicado/incompleto.
+// Reutiliza la misma RPC de rechazo: la marca como "rechazada" (no se publica nada) y
+// deja de aparecer en la lista de cargas activas, conservando el registro para auditoria.
+async function eliminarTarifarioPendiente(id){
+  if(!confirm('¿Confirmas que deseas eliminar esta carga antes de que sea revisada? No se procesara ni se publicara ninguna tarifa.')) return;
+  const {error} = await sb.rpc('rechazar_tarifario_upload', {p_password: editorPassword, p_id: id, p_editor: editorName, p_motivo: 'Eliminada por el master antes de la revision.'});
+  if(error){ toast('Error: ' + error.message); return; }
+  toast('Carga eliminada');
   await loadTarifarioUploads();
   renderTarifarioUploads();
 }
