@@ -1534,6 +1534,8 @@ function borradorPreviewTable(borrador){
   </table>`;
 }
 
+let expandedUploadBorradores = new Set();
+let uploadsHistorialExpanded = false;
 function renderTarifarioUploads(){
   const el = document.getElementById('tarifarioUploadsPanel');
   if(!isEditor || tarifarioUploads.length === 0){ el.innerHTML = ''; return; }
@@ -1546,10 +1548,11 @@ function renderTarifarioUploads(){
     const fecha = fmtDate(u.creado_en ? u.creado_en.slice(0,10) : '');
     let extra = '';
     if(u.estado === 'revision'){
+      const abierto = expandedUploadBorradores.has(u.id);
       extra = `
         ${u.resumen ? `<div class="upload-resumen">${esc(u.resumen)}</div>` : ''}
-        <button class="icon-btn expand-btn" onclick="toggleBorradorPreview(${u.id})" id="borradorBtn-${u.id}">Ver detalle &#9662;</button>
-        <div id="borrador-${u.id}" style="display:none">${borradorPreviewTable(u.borrador)}</div>
+        <button class="icon-btn expand-btn" onclick="toggleBorradorPreview(${u.id})" id="borradorBtn-${u.id}">${abierto ? 'Ocultar detalle &#9652;' : 'Ver detalle &#9662;'}</button>
+        <div id="borrador-${u.id}" style="display:${abierto ? 'block' : 'none'}">${borradorPreviewTable(u.borrador)}</div>
         ${editorRole === 'master' ? `<div class="upload-actions">
           <button class="btn btn-primary" onclick="aprobarTarifarioUpload(${u.id})">Aprobar y publicar</button>
           <button class="btn" onclick="rechazarTarifarioUpload(${u.id})">Rechazar</button>
@@ -1574,8 +1577,8 @@ function renderTarifarioUploads(){
 
   const activosHtml = activos.map(cardHtml).join('');
   const historialHtml = historial.length ? `
-    <button class="icon-btn expand-btn" onclick="toggleUploadsHistorial()" id="uploadsHistorialBtn">Ver historial reciente &#9662;</button>
-    <div id="uploadsHistorial" style="display:none">${historial.map(cardHtml).join('')}</div>
+    <button class="icon-btn expand-btn" onclick="toggleUploadsHistorial()" id="uploadsHistorialBtn">${uploadsHistorialExpanded ? 'Ocultar historial &#9652;' : 'Ver historial reciente &#9662;'}</button>
+    <div id="uploadsHistorial" style="display:${uploadsHistorialExpanded ? 'block' : 'none'}">${historial.map(cardHtml).join('')}</div>
   ` : '';
 
   el.innerHTML = `
@@ -1592,20 +1595,13 @@ function renderTarifarioUploads(){
     </div>`;
 }
 function toggleBorradorPreview(id){
-  const el = document.getElementById('borrador-'+id);
-  if(!el) return;
-  const showing = el.style.display !== 'none';
-  el.style.display = showing ? 'none' : 'block';
-  const btn = document.getElementById('borradorBtn-'+id);
-  if(btn) btn.innerHTML = showing ? 'Ver detalle &#9662;' : 'Ocultar detalle &#9652;';
+  if(expandedUploadBorradores.has(id)) expandedUploadBorradores.delete(id);
+  else expandedUploadBorradores.add(id);
+  renderTarifarioUploads();
 }
 function toggleUploadsHistorial(){
-  const el = document.getElementById('uploadsHistorial');
-  if(!el) return;
-  const showing = el.style.display !== 'none';
-  el.style.display = showing ? 'none' : 'block';
-  const btn = document.getElementById('uploadsHistorialBtn');
-  if(btn) btn.innerHTML = showing ? 'Ver historial reciente &#9662;' : 'Ocultar historial &#9652;';
+  uploadsHistorialExpanded = !uploadsHistorialExpanded;
+  renderTarifarioUploads();
 }
 async function aprobarTarifarioUpload(id){
   const u = tarifarioUploads.find(x => x.id === id);
@@ -2092,6 +2088,37 @@ async function init(){
   await loadArchivos();
   await Promise.all([loadContactos(), loadTarifas(), loadTarifarioUploads(), loadManejos()]);
   renderTarifarioUploads();
+  startAutoRefresh();
+}
+
+// Auto-refresh: revisa periodicamente si alguien subio un tarifario o un archivo nuevo,
+// para que no haga falta recargar la pantalla manualmente para verlo aparecer.
+let autoRefreshHandle = null;
+function startAutoRefresh(){
+  if(autoRefreshHandle) return;
+  autoRefreshHandle = setInterval(pollForUpdates, 20000);
+}
+async function pollForUpdates(){
+  try{
+    if(isEditor){
+      const prevActivos = tarifarioUploads.filter(u => u.estado === 'pendiente' || u.estado === 'revision').length;
+      await loadTarifarioUploads();
+      const nuevosActivos = tarifarioUploads.filter(u => u.estado === 'pendiente' || u.estado === 'revision').length;
+      renderTarifarioUploads();
+      if(nuevosActivos > prevActivos) toast('Nuevo tarifario subido por pricing');
+    }
+    const prevArchivosCount = archivos.length;
+    await loadArchivos();
+    if(archivos.length !== prevArchivosCount){
+      renderContactos();
+      if(archivosModalEmpresa){
+        renderArchivosList();
+        if(archivos.length > prevArchivosCount) toast('Nuevo archivo subido para ' + archivosModalEmpresa);
+      }
+    }
+  } catch(e){
+    console.error('Error en auto-refresh:', e);
+  }
 }
 // init() ahora se dispara desde attemptLogin() / restoreSession() / enterEditModeLegacy() via ensureDataLoaded(),
 // una vez que hay una sesion valida. Antes de eso el gate de acceso bloquea la vista.
