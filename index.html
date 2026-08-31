@@ -146,6 +146,7 @@ body{
 .empty{padding:50px;text-align:center;color:var(--text-dim);font-size:14px;}
 
 .tarifa-val{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;color:var(--gold);white-space:nowrap;}
+.tarifa-val-label{display:none;}
 .row-head{
   display:grid;grid-template-columns:1fr 190px;gap:16px;padding:0 18px 8px;border-bottom:1px solid var(--border);margin-bottom:10px;
 }
@@ -202,6 +203,8 @@ body{
   .aereo-grid{grid-template-columns:1fr !important;gap:4px;}
   .row-card:has(.aereo-grid){flex-direction:column;}
   .row-head:has(.aereo-grid){display:none;}
+  /* Sin el encabezado de columnas, cada valor de tarifa Aereo debe traer su propia etiqueta */
+  .aereo-grid .tarifa-val-label{display:inline;color:var(--text-dim);font-weight:400;margin-right:4px;}
 }
 .site-footer{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
@@ -1048,13 +1051,13 @@ function tarifaCells(t){
   }
   if(t.tipo_servicio === 'AEREO'){
     return `
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_minimo))}</div>
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_45menos))}</div>
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_45mas))}</div>
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_100))}</div>
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_300))}</div>
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_500))}</div>
-      <div class="tarifa-val">${esc(fmtMoney(t.tarifa_1000))}</div>`;
+      <div class="tarifa-val"><span class="tarifa-val-label">Minimo:</span>${esc(fmtMoney(t.tarifa_minimo))}</div>
+      <div class="tarifa-val"><span class="tarifa-val-label">-45kg:</span>${esc(fmtMoney(t.tarifa_45menos))}</div>
+      <div class="tarifa-val"><span class="tarifa-val-label">+45kg:</span>${esc(fmtMoney(t.tarifa_45mas))}</div>
+      <div class="tarifa-val"><span class="tarifa-val-label">100kg:</span>${esc(fmtMoney(t.tarifa_100))}</div>
+      <div class="tarifa-val"><span class="tarifa-val-label">300kg:</span>${esc(fmtMoney(t.tarifa_300))}</div>
+      <div class="tarifa-val"><span class="tarifa-val-label">500kg:</span>${esc(fmtMoney(t.tarifa_500))}</div>
+      <div class="tarifa-val"><span class="tarifa-val-label">1000kg:</span>${esc(fmtMoney(t.tarifa_1000))}</div>`;
   }
   return `<div class="tarifa-val">${esc(t.tarifa||'—')} <span style="font-size:10px;color:var(--text-dim)">${esc(t.moneda||'')}</span></div>`;
 }
