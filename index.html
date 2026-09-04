@@ -1910,17 +1910,24 @@ function matchAcarreo(a){
     zonaPuerto = normalizarZonaPuerto(a.puerto_fcl);
   } else if(a.tipo_servicio === 'LCL'){
     zonaPuerto = 'zona libre';
-  } else {
-    zonaPuerto = 'panama';
+  } else if(a.tipo_servicio === 'AEREO' || a.tipo_servicio === 'COURIER'){
+    zonaPuerto = 'aeropuerto';
   }
   const candidatos = manejosAcarreos.filter(m => m.tipo === tipo);
   const contains = (x, y) => !!x && !!y && (x.includes(y) || y.includes(x));
-  const match = candidatos.find(m => {
+  // La tarifa de acarreo de "desde" hasta "hasta" funciona igual en ambos sentidos:
+  // una ruta guardada como A -> B tambien cubre una solicitud de B -> A al mismo precio.
+  const matchesConReferencia = (m) => {
     const desde = normalizarTexto(m.desde), hasta = normalizarTexto(m.hasta);
-    return (zonaPuerto && contains(desde, zonaPuerto) && contains(hasta, zonaCliente)) ||
-           (zonaPuerto && contains(hasta, zonaPuerto) && contains(desde, zonaCliente)) ||
-           (!zonaPuerto && (contains(desde, zonaCliente) || contains(hasta, zonaCliente)));
-  });
+    return (contains(desde, zonaPuerto) && contains(hasta, zonaCliente)) ||
+           (contains(hasta, zonaPuerto) && contains(desde, zonaCliente));
+  };
+  let match = zonaPuerto ? candidatos.find(matchesConReferencia) : null;
+  if(!match){
+    // Respaldo: si no se pudo ubicar por punto de referencia (puerto/aeropuerto/zona libre),
+    // buscar cualquier ruta -en cualquiera de los dos sentidos- que toque la zona pedida por el cliente.
+    match = candidatos.find(m => contains(normalizarTexto(m.desde), zonaCliente) || contains(normalizarTexto(m.hasta), zonaCliente));
+  }
   return { tipo, zonaCliente: a.zona_entrega_recogida, zonaPuerto, row: match || null };
 }
 
@@ -2061,6 +2068,11 @@ function renderResultadoHeyJefe(a){
     if(acarreoInfo && acarreoInfo.row){
       const r = acarreoInfo.row;
       manejosRows.push(`<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>Acarreo (${tipoLabel}) — ${accion}${a.zona_entrega_recogida ? ' en ' + esc(a.zona_entrega_recogida) : ''}: ${esc(r.desde)} &rarr; ${esc(r.hasta)}${r.transportista ? ' ('+esc(r.transportista)+')' : ''}</span><span style="color:var(--text-dim)">$${Number(r.venta).toFixed(2)}</span></div>`);
+    } else if(a.incoterm === 'DAP' || a.incoterm === 'DDP'){
+      // No se encontro tarifa de acarreo para la direccion indicada en un servicio DAP/DDP:
+      // en vez de marcarlo como dato faltante, se indica que debe cotizarse con el transportista,
+      // en el mismo lugar donde iria el precio.
+      manejosRows.push(`<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>Acarreo (${tipoLabel} — tarifario del transportista) — ${accion}${a.zona_entrega_recogida ? ' en ' + esc(a.zona_entrega_recogida) : ''}</span><span style="color:var(--gold);font-weight:600">Cotizar con el transportista</span></div>`);
     } else {
       manejosRows.push(`<div style="font-size:13px;color:var(--text-dim);margin-bottom:4px">Se detecto solicitud de ${accion.toLowerCase()} a domicilio${a.zona_entrega_recogida ? ' en ' + esc(a.zona_entrega_recogida) : ''}, pero no se pudo determinar la tarifa de acarreo (verifica zona / puerto / naviera).</div>`);
     }
