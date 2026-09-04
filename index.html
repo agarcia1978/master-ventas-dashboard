@@ -1201,6 +1201,7 @@ function renderTarifaGroup(tipo, rows){
 }
 function renderTarifas(){
   const tipo = document.getElementById('filterTipo').value;
+  renderAcarreos(tipo);
   populateProveedorFilter(tipo);
   const proveedor = document.getElementById('filterProveedor').value;
   populateOrigenFilter(tipo, proveedor);
@@ -1232,7 +1233,14 @@ function renderTarifas(){
     return hay.includes(q);
   });
   document.getElementById('countTarifas').textContent = `${rows.length} / ${tarifas.length}`;
-  if(rows.length === 0){ body.innerHTML = ""; empty.style.display = "block"; return; }
+  if(rows.length === 0){
+    body.innerHTML = "";
+    // Si se selecciono el tipo Transportistas (TERRESTRE) y hay acarreos cargados, el contenido
+    // real esta en el bloque de renderAcarreos(); no mostrar el mensaje de "sin tarifarios".
+    const acarreosVisibles = tipo === 'TERRESTRE' && manejosAcarreos && manejosAcarreos.length;
+    empty.style.display = acarreosVisibles ? "none" : "block";
+    return;
+  }
   empty.style.display = "none";
 
   if(sortKey){
@@ -1970,10 +1978,15 @@ function dedupeAcarreos(rows){
   });
   return out;
 }
-function renderAcarreos(){
+function renderAcarreos(tipoSel){
   const cont = document.getElementById('bodyAcarreos');
   if(!cont) return;
-  if(!manejosAcarreos || !manejosAcarreos.length){ cont.innerHTML = ''; return; }
+  if(tipoSel === undefined){
+    const el = document.getElementById('filterTipo');
+    tipoSel = el ? el.value : '';
+  }
+  // Este tarifario solo se muestra cuando se selecciona el tipo "Transportistas" (TERRESTRE) en el filtro.
+  if(tipoSel !== 'TERRESTRE' || !manejosAcarreos || !manejosAcarreos.length){ cont.innerHTML = ''; return; }
 
   const grid = "minmax(140px,1fr) minmax(140px,1fr) minmax(160px,1fr) minmax(100px,.5fr)";
   const headBlock = `<div class="row-head" style="border-bottom:none;margin-bottom:6px;padding:0 18px">
@@ -2183,6 +2196,8 @@ function renderResultadoHeyJefe(a){
 
 async function init(){
   fillSelect('filterTipo', TIPOS_SERVICIO, true, 'Todos los tipos');
+  const terrestreOpt = document.querySelector('#filterTipo option[value="TERRESTRE"]');
+  if(terrestreOpt) terrestreOpt.textContent = 'Transportistas';
   fillSelect('t_tipo_servicio', TIPOS_SERVICIO, false);
   fillSelect('ut_tipo_servicio', TIPOS_SERVICIO, true, 'No estoy seguro / mixto');
   await loadArchivos();
