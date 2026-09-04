@@ -2198,7 +2198,24 @@ function renderResultadoHeyJefe(a){
       <div><div class="row-tag">Manejos aplicables</div>${manejosHtml}</div>
     </div>`;
 
-  cont.innerHTML = diagHtml + checklistHtml + sugerenciasHtml + manejosCardHtml;
+  // Notas importantes: cuando la solicitud pide que A+ Logistics sea consignado/notificado
+  // en el BL/MBL/AWB/MAWB, se debe enviar al cliente/agente la informacion fija de consignacion.
+  const notasImportantesHtml = a.requiere_consignacion ? `
+    <div class="row-card" style="grid-template-columns:1fr;border-color:var(--gold)">
+      <div>
+        <div class="row-tag" style="color:var(--gold)">Notas importantes</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px">Esta solicitud requiere consignar/notificar la carga a favor de A+ Logistics. Enviar al cliente/agente los siguientes datos para consignar el BL/MBL/AWB/MAWB:</div>
+        <div style="font-size:13px;line-height:1.7">
+          <b>Consignee to / Consignar a:</b><br>
+          AGGP Consulting SA / A plus Logistics<br>
+          Panamerican Corporate Center, Galera 9123, Arraijan, Panama<br>
+          Ph: +507-394-4044<br>
+          operations@apluslogistics.com.pa
+        </div>
+      </div>
+    </div>` : '';
+
+  cont.innerHTML = diagHtml + checklistHtml + sugerenciasHtml + manejosCardHtml + notasImportantesHtml;
 }
 
 async function init(){
