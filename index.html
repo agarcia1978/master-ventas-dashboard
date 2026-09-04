@@ -297,6 +297,7 @@ body{
     <div id="tarifarioUploadsPanel"></div>
     <div id="bodyTarifas"></div>
     <div class="empty" id="emptyTarifas" style="display:none">Aun no hay tarifarios cargados. Entra en modo edicion para agregar.</div>
+    <div id="bodyAcarreos"></div>
   </div>
 
   <div id="viewHeyJefe" style="display:none">
@@ -1802,6 +1803,7 @@ async function loadManejos(){
   manejosBase = r1.data || [];
   manejosAcarreos = r2.data || [];
   manejosGastosPortuarios = r3.data || [];
+  renderAcarreos();
 }
 
 function onHeyJefeArchivoChange(){
@@ -1943,6 +1945,76 @@ function matchGastosPortuarios(a){
     return navieraOk && puertoOk;
   });
   return row || null;
+}
+
+// Tarifario de Transportistas (Acarreo): vista de solo lectura en la pestana Tarifarios,
+// separada por Camion y Contenedor (no por transportista), ya que cada ruta aplica al
+// mismo precio en ambos sentidos (recogida o entrega).
+const ACARREO_TIPO_LABEL = { camion: 'Camión', contenedor: 'Contenedor' };
+const ACARREO_TIPO_ORDEN = ['camion', 'contenedor'];
+const ACARREO_ACCENT = { camion: '#8FC24C', contenedor: '#4C9BE0' };
+let expandedAcarreoGroups = new Set();
+function toggleAcarreoGroup(tipo){
+  if(expandedAcarreoGroups.has(tipo)) expandedAcarreoGroups.delete(tipo);
+  else expandedAcarreoGroups.add(tipo);
+  renderAcarreos();
+}
+function dedupeAcarreos(rows){
+  const seen = new Set();
+  const out = [];
+  rows.forEach(r => {
+    const key = [normalizarTexto(r.desde), normalizarTexto(r.hasta), r.venta, normalizarTexto(r.transportista)].join('|');
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push(r);
+  });
+  return out;
+}
+function renderAcarreos(){
+  const cont = document.getElementById('bodyAcarreos');
+  if(!cont) return;
+  if(!manejosAcarreos || !manejosAcarreos.length){ cont.innerHTML = ''; return; }
+
+  const grid = "minmax(140px,1fr) minmax(140px,1fr) minmax(160px,1fr) minmax(100px,.5fr)";
+  const headBlock = `<div class="row-head" style="border-bottom:none;margin-bottom:6px;padding:0 18px">
+      <div class="row-main" style="grid-template-columns:${grid}">
+        <span class="th-label">Desde</span><span class="th-label">Hasta</span><span class="th-label">Transportista</span><span class="th-label">Tarifa</span>
+      </div>
+      <div class="row-actions-spacer"></div>
+    </div>`;
+
+  const groupsHtml = ACARREO_TIPO_ORDEN.filter(tp => manejosAcarreos.some(m => m.tipo === tp)).map(tp => {
+    const rows = dedupeAcarreos(manejosAcarreos.filter(m => m.tipo === tp))
+      .sort((a,b) => (normalizarTexto(a.desde)+normalizarTexto(a.hasta)).localeCompare(normalizarTexto(b.desde)+normalizarTexto(b.hasta)));
+    const isExpanded = expandedAcarreoGroups.has(tp);
+    const rowsHtml = rows.map(r => `
+      <div class="row-card" style="--accent:${ACARREO_ACCENT[tp]}">
+        <div class="row-main" style="grid-template-columns:${grid}">
+          <div class="row-mono">${esc(r.desde)}</div>
+          <div class="row-mono">${esc(r.hasta)}</div>
+          <div class="row-empresa">${esc(r.transportista||'—')}</div>
+          <div class="tarifa-val">$${Number(r.venta).toFixed(2)}</div>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="red-group">
+        <div class="red-group-head" onclick="toggleAcarreoGroup('${tp}')">
+          <span class="red-group-title">${ACARREO_TIPO_LABEL[tp] || tp}</span>
+          <span class="red-group-meta">
+            <span class="red-group-count">${rows.length} ruta${rows.length === 1 ? '' : 's'}</span>
+            <span class="red-group-chevron">${isExpanded ? '&#9652;' : '&#9662;'}</span>
+          </span>
+        </div>
+        ${isExpanded ? `<div class="red-group-body">${headBlock}${rowsHtml}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  cont.innerHTML = `
+    <div class="tarifa-group">
+      <div class="tarifa-group-title">Tarifario de Transportistas (Acarreo)</div>
+      <div style="font-size:12px;color:var(--text-dim);margin:-4px 0 12px">Cada ruta aplica a la misma tarifa en ambos sentidos (recogida o entrega).</div>
+      ${groupsHtml}
+    </div>`;
 }
 
 function renderResultadoHeyJefe(a){
