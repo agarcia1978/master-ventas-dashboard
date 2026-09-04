@@ -2142,6 +2142,13 @@ function renderResultadoHeyJefe(a){
       if(norm(m.concepto).includes('collect fee')) return a.collect_flete === true;
       return true;
     });
+    // Ley 6ta: es una fila fija de manejos_base para varios servicios, pero SOLO debe cobrarse
+    // cuando la recogida/entrega realmente ocurre en una zona franca (detectado por la IA en
+    // notas_especiales); de lo contrario debe ocultarse aunque exista la fila en manejos_base.
+    rows = rows.filter(m => {
+      if(norm(m.concepto).includes('ley 6ta')) return esZonaFranca === true;
+      return true;
+    });
     manejosRows = rows.map(m => `<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border)"><span>${esc(m.concepto)}</span><span style="color:var(--text-dim)">${esc(m.valor)}</span></div>`);
   }
 
