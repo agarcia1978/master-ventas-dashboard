@@ -2116,23 +2116,31 @@ function renderResultadoHeyJefe(a){
   }
 
   // Contactos sugeridos: un solo contacto por empresa, siempre el principal si existe.
-  // Casos especiales dentro de "Naviera":
-  //  - Breakbulk/RO-RO: solo mostrar navieras marcadas para ese tipo de carga (tag "Breakbulk"/"RO-RO" en Notas).
-  //  - Resto de casos de Naviera (ej. exportacion FCL): mostrar solo el nombre, en el orden de prioridad
-  //    fijo de A+ Logistics, cada uno enlazado al directorio de esa empresa.
+  // Casos especiales:
+  //  - Breakbulk/RO-RO: usar la categoria propia del directorio para este tipo de carga
+  //    (la categoria cuyo nombre contiene "RORO"/"RO-RO"/"Breakbulk"), NO la categoria "Naviera".
+  //  - Naviera (resto de casos, ej. exportacion FCL): mostrar solo el nombre, en el orden de
+  //    prioridad fijo de A+ Logistics, cada uno enlazado al directorio de esa empresa.
   const NAVIERA_ORDEN = ['Maersk', 'MSC', 'Hapag-Lloyd', 'One', 'Cosco'];
   let contactosHtml = '';
-  if(a.categoria_contacto_sugerida === 'Naviera' && (a.tipo_servicio === 'BREAKBULK' || a.tipo_servicio === 'RORO')){
-    const filtrados = contactos.filter(c => c.categoria === 'Naviera' && (norm(c.notas).includes('breakbulk') || norm(c.notas).includes('ro-ro') || norm(c.notas).includes('roro')));
+  let categoriaMostrada = a.categoria_contacto_sugerida;
+  if(a.tipo_servicio === 'BREAKBULK' || a.tipo_servicio === 'RORO'){
+    categoriaMostrada = 'RORO / Breakbulk';
+    const esRoroBreakbulk = cat => {
+      const c = norm(cat);
+      return c.includes('roro') || c.includes('ro-ro') || c.includes('ro ro') || c.includes('breakbulk') || c.includes('break bulk');
+    };
+    const filtrados = contactos.filter(c => esRoroBreakbulk(c.categoria));
     const porEmpresa = {};
     filtrados.forEach(c => {
       const actual = porEmpresa[c.empresa];
       if(!actual || (c.es_principal && !actual.es_principal)) porEmpresa[c.empresa] = c;
     });
     const matches = Object.values(porEmpresa);
+    if(matches.length) categoriaMostrada = matches[0].categoria;
     contactosHtml = matches.length
       ? matches.map(c => `<div style="font-size:13px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)"><a href="javascript:void(0)" onclick="irADirectorioDesdeHeyJefe('${escJs(c.empresa)}')" style="color:var(--gold);text-decoration:underline;cursor:pointer"><b>${esc(c.empresa)}</b></a> ${c.nombre ? '— ' + esc(c.nombre) : ''}${c.correo ? '<br>' + esc(c.correo) : ''}${c.telefono ? ' &nbsp;' + esc(c.telefono) : ''}</div>`).join('')
-      : `<div style="font-size:13px;color:var(--text-dim)">No hay navieras marcadas como Breakbulk/RO-RO en el directorio. Agrega "Breakbulk" o "RO-RO" en el campo Notas del contacto de la naviera correspondiente para que aparezca aqui.</div>`;
+      : `<div style="font-size:13px;color:var(--text-dim)">No hay contactos en la categoria RORO/Breakbulk del directorio. Verifica que las navieras que manejan este tipo de carga esten cargadas con esa categoria.</div>`;
   } else if(a.categoria_contacto_sugerida === 'Naviera'){
     contactosHtml = NAVIERA_ORDEN.map(nombre => `<div style="font-size:13px;margin-bottom:6px"><a href="javascript:void(0)" onclick="irADirectorioDesdeHeyJefe('${escJs(nombre)}')" style="color:var(--gold);text-decoration:underline;cursor:pointer;font-weight:600">${esc(nombre)}</a></div>`).join('');
   } else if(a.categoria_contacto_sugerida){
@@ -2153,7 +2161,7 @@ function renderResultadoHeyJefe(a){
   const sugerenciasHtml = `
     <div class="row-card" style="grid-template-columns:1fr 1fr">
       <div><div class="row-tag">Tarifario propio (posibles coincidencias)</div>${tarifarioHtml}</div>
-      <div><div class="row-tag">${a.categoria_contacto_sugerida ? 'Contactar en directorio: ' + esc(a.categoria_contacto_sugerida) : 'A quien contactar'}</div>${contactosHtml}</div>
+      <div><div class="row-tag">${categoriaMostrada ? 'Contactar en directorio: ' + esc(categoriaMostrada) : 'A quien contactar'}</div>${contactosHtml}</div>
     </div>`;
 
   // Manejos aplicables: base + acarreo + gastos portuarios, todo en una sola lista
