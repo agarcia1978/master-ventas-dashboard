@@ -421,7 +421,7 @@ body{
     <div id="archivosList"></div>
     <div id="archivosUploadForm" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="field"><label>Nombre del archivo</label><input type="text" id="af_nombre" placeholder="Ej: Tarifario 2026" /></div>
-      <div class="field"><label>Tipo (opcional)</label><input type="text" id="af_tipo" placeholder="Tarifario, Contrato, Cotizacion..." /></div>
+      <div class="field" id="af_tipo_field"><label>Tipo (opcional)</label><input type="text" id="af_tipo" placeholder="Tarifario, Contrato, Cotizacion..." /></div>
       <div class="field"><label>Archivo</label><input type="file" id="af_file" /></div>
       <div class="err" id="archivosUploadErr"></div>
     </div>
@@ -838,6 +838,7 @@ function onCategoriaChange(){
 
 function contactRowHtml(c, accent, othersCount, isExpanded, empresaKey, nested, archivosCount){
   const showArchivos = !nested;
+  const infoOpCount = archivos.filter(a => a.empresa === c.empresa && a.tipo === 'Info Operativa').length;
   return `
     <div class="row-card ${nested ? 'row-nested' : ''}" style="--accent:${accent}">
       <div class="row-main">
@@ -850,6 +851,7 @@ function contactRowHtml(c, accent, othersCount, isExpanded, empresaKey, nested, 
       <div class="row-actions">
         ${othersCount > 0 ? `<button class="icon-btn expand-btn" onclick="toggleEmpresaExpand('${escJs(empresaKey)}')" title="${isExpanded ? 'Ocultar contactos' : 'Ver mas contactos'}">${isExpanded ? '&#9650;' : '&#9660;'} ${othersCount}</button>` : ''}
         ${showArchivos ? `<button class="icon-btn" onclick="openArchivosModal('${escJs(c.empresa)}')" title="Archivos">&#128206;${archivosCount > 0 ? ' '+archivosCount : ''}</button>` : ''}
+        ${showArchivos ? `<button class="icon-btn" onclick="openArchivosModal('${escJs(c.empresa)}','Info Operativa')" title="Informacion operativa"${infoOpCount > 0 ? ' style="border-color:var(--gold);color:var(--gold)"' : ''}>Info. Operativa${infoOpCount > 0 ? ' ('+infoOpCount+')' : ''}</button>` : ''}
         ${isEditor ? `<button class="icon-btn" onclick="openContactoModal(${c.id})" title="Editar">&#9998;</button>
         <button class="icon-btn danger" onclick="deleteContacto(${c.id})" title="Eliminar">&times;</button>` : ''}
       </div>
@@ -1659,13 +1661,16 @@ async function eliminarTarifarioPendiente(id){
 }
 
 let archivosModalEmpresa = null;
-function openArchivosModal(empresa){
+let archivosModalFiltro = null;
+function openArchivosModal(empresa, filtro){
   archivosModalEmpresa = empresa;
-  document.getElementById('archivosModalTitle').textContent = 'Archivos — ' + empresa;
+  archivosModalFiltro = filtro || null;
+  document.getElementById('archivosModalTitle').textContent = (filtro ? filtro : 'Archivos') + ' — ' + empresa;
   document.getElementById('archivosUploadForm').style.display = isEditor ? 'block' : 'none';
   document.getElementById('archivosUploadBtn').style.display = isEditor ? 'inline-block' : 'none';
   document.getElementById('af_nombre').value = '';
-  document.getElementById('af_tipo').value = '';
+  document.getElementById('af_tipo').value = filtro || '';
+  document.getElementById('af_tipo_field').style.display = filtro ? 'none' : 'block';
   document.getElementById('af_file').value = '';
   document.getElementById('archivosUploadErr').textContent = '';
   renderArchivosList();
@@ -1674,12 +1679,13 @@ function openArchivosModal(empresa){
 function closeArchivosModal(){
   document.getElementById('archivosModalOverlay').classList.remove('open');
   archivosModalEmpresa = null;
+  archivosModalFiltro = null;
 }
 function renderArchivosList(){
-  const list = archivos.filter(a => a.empresa === archivosModalEmpresa);
+  const list = archivos.filter(a => a.empresa === archivosModalEmpresa && (!archivosModalFiltro || a.tipo === archivosModalFiltro));
   const el = document.getElementById('archivosList');
   if(list.length === 0){
-    el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;margin:6px 0">Aun no hay archivos para esta empresa.</p>';
+    el.innerHTML = `<p style="color:var(--text-dim);font-size:13px;margin:6px 0">Aun no hay ${archivosModalFiltro ? 'informacion operativa' : 'archivos'} para esta empresa.</p>`;
     return;
   }
   el.innerHTML = list.map(a => `
@@ -1697,7 +1703,7 @@ async function uploadArchivo(){
   if(!file){ errEl.textContent = 'Selecciona un archivo.'; return; }
   if(!archivosModalEmpresa){ errEl.textContent = 'Empresa no definida.'; return; }
   const nombre = document.getElementById('af_nombre').value.trim() || file.name;
-  const tipo = document.getElementById('af_tipo').value.trim();
+  const tipo = archivosModalFiltro || document.getElementById('af_tipo').value.trim();
   const safeEmpresa = archivosModalEmpresa.replace(/[^a-zA-Z0-9_-]+/g, '_');
   const safeFile = file.name.replace(/[^a-zA-Z0-9_.-]+/g, '_');
   const path = `${safeEmpresa}/${Date.now()}_${safeFile}`;
