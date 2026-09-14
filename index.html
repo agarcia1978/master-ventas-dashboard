@@ -224,8 +224,8 @@ body{
     <div class="brand-txt">Master A+<span>A+ Logistics — Equipo comercial</span></div>
   </div>
   <div class="navtabs" id="navTabs" style="display:none">
-    <button class="navtab active" id="navContactos" onclick="switchTab('contactos')">Directorio</button>
-    <button class="navtab" id="navTarifas" onclick="switchTab('tarifarios')">Tarifarios</button>
+    <button class="navtab active" id="navContactos" onclick="switchTab('contactos'); ocultarBotonVolverHeyJefe()">Directorio</button>
+    <button class="navtab" id="navTarifas" onclick="switchTab('tarifarios'); ocultarBotonVolverHeyJefe()">Tarifarios</button>
     <button class="navtab" id="navHeyJefe" onclick="switchTab('heyjefe')">Hey, Jefe!</button>
   </div>
   <button class="btn" id="adminUsersBtn" style="display:none" onclick="openAdminUsersModal()">Administrar accesos</button>
@@ -267,6 +267,7 @@ body{
       <select id="filterCategoria" onchange="leaveHome(); onCategoriaChange()"></select>
       <select id="filterEmpresa" onchange="leaveHome(); renderContactos()"></select>
       <button class="btn" id="homeBtn" style="display:none" onclick="goHome()">&#8962; Mi empresa</button>
+      <button class="btn btn-primary" id="volverHeyJefeBtnContactos" style="display:none" onclick="switchTab('heyjefe')">&larr; Volver a Hey, Jefe!</button>
       <button class="btn btn-primary" id="addContactoBtn" style="display:none" onclick="openContactoModal()">+ Contacto</button>
       <span class="count-tag" id="countContactos"></span>
     </div>
@@ -292,6 +293,7 @@ body{
       <button class="btn btn-primary" id="addTarifaBtn" style="display:none" onclick="openTarifaModal()">+ Tarifa</button>
       <button class="btn" id="uploadTarifarioBtn" style="display:none" onclick="openUploadTarifarioModal()">Subir tarifario nuevo</button>
       <button class="btn" id="verVencidasBtn" style="display:none" onclick="toggleVerVencidas()">Ver vencidas</button>
+      <button class="btn btn-primary" id="volverHeyJefeBtnTarifarios" style="display:none" onclick="switchTab('heyjefe')">&larr; Volver a Hey, Jefe!</button>
       <span class="count-tag" id="countTarifas"></span>
     </div>
     <div id="tarifarioUploadsPanel"></div>
@@ -2038,6 +2040,18 @@ function renderAcarreos(tipoSel){
     </div>`;
 }
 
+function mostrarBotonVolverHeyJefe(){
+  const a = document.getElementById('volverHeyJefeBtnContactos');
+  const b = document.getElementById('volverHeyJefeBtnTarifarios');
+  if(a) a.style.display = 'inline-block';
+  if(b) b.style.display = 'inline-block';
+}
+function ocultarBotonVolverHeyJefe(){
+  const a = document.getElementById('volverHeyJefeBtnContactos');
+  const b = document.getElementById('volverHeyJefeBtnTarifarios');
+  if(a) a.style.display = 'none';
+  if(b) b.style.display = 'none';
+}
 function irADirectorioDesdeHeyJefe(empresa){
   switchTab('contactos');
   leaveHome();
@@ -2046,6 +2060,7 @@ function irADirectorioDesdeHeyJefe(empresa){
   document.getElementById('filterEmpresa').value = '';
   document.getElementById('searchContactos').value = empresa;
   renderContactos();
+  mostrarBotonVolverHeyJefe();
 }
 function irATarifarioDesdeHeyJefe(proveedor, tipo){
   switchTab('tarifarios');
@@ -2055,6 +2070,7 @@ function irATarifarioDesdeHeyJefe(proveedor, tipo){
   const provSel = document.getElementById('filterProveedor');
   if(provSel) provSel.value = proveedor || '';
   renderTarifas();
+  mostrarBotonVolverHeyJefe();
 }
 
 function renderResultadoHeyJefe(a){
