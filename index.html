@@ -1024,11 +1024,17 @@ function renderCargosTable(raw){
       <tbody>${rows}</tbody>
     </table>`;
 }
-function getTarifarioArchivo(proveedor){
+function getTarifarioArchivo(proveedor, tipoServicio){
   if(!proveedor) return null;
   const candidatos = archivos.filter(a => a.empresa === proveedor && a.tipo === 'Tarifario');
   if(candidatos.length === 0) return null;
-  return candidatos.sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en))[0];
+  const sorted = candidatos.sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en));
+  if(tipoServicio){
+    const match = sorted.find(a => a.tipo_servicio === tipoServicio);
+    if(match) return match;
+  }
+  const generico = sorted.find(a => !a.tipo_servicio);
+  return generico || sorted[0];
 }
 function fmtMoney(v){
   if(v === null || v === undefined || v === '') return '—';
@@ -1071,7 +1077,7 @@ function toggleTarifaVariants(key){
   renderTarifas();
 }
 function tarifaRowHtml(t, layout, accent, variantToggle, isVariant){
-  const fuente = getTarifarioArchivo(t.proveedor);
+  const fuente = getTarifarioArchivo(t.proveedor, t.tipo_servicio);
   const fuenteBtn = fuente ? `<a class="icon-btn" href="${esc(fuente.url)}" target="_blank" rel="noopener" title="Ver tarifario de origen: ${esc(fuente.nombre_archivo)}">&#128196;</a>` : '';
   const destinoLabel = isVariant
     ? `<span class="tarifa-variant-tag">(${esc(t.destino_variante||'')})</span>`
