@@ -228,6 +228,7 @@ body{
     <button class="navtab" id="navTarifas" onclick="switchTab('tarifarios'); ocultarBotonVolverHeyJefe()">Tarifarios</button>
     <button class="navtab" id="navHeyJefe" onclick="switchTab('heyjefe')">Hey, Jefe!</button>
   </div>
+  <button class="btn" id="novedadesBtn" style="display:none;position:relative" onclick="openNovedadesModal()">&#128227; Novedades<span id="novedadesDot" style="display:none;position:absolute;top:-4px;right:-4px;width:9px;height:9px;border-radius:50%;background:var(--danger)"></span></button>
   <button class="btn" id="adminUsersBtn" style="display:none" onclick="openAdminUsersModal()">Administrar accesos</button>
   <span class="edit-toggle" id="editToggleBtn" style="display:none;cursor:default"></span>
   <button class="btn" id="logoutBtn" style="display:none" onclick="doLogout()">Cerrar sesion</button>
@@ -432,6 +433,17 @@ body{
   </div>
 </div>
 
+<div class="modal-overlay" id="novedadesModalOverlay">
+  <div class="modal">
+    <h2>&#128227; Novedades</h2>
+    <p style="font-size:12.5px;color:var(--text-dim);margin:-6px 0 14px">Boletín de cambios recientes: tarifarios actualizados y documentos subidos.</p>
+    <div id="novedadesList" style="max-height:55vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeNovedadesModal()">Entendido</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="adminUsersModalOverlay">
   <div class="modal">
     <h2>Administrar accesos</h2>
@@ -544,6 +556,7 @@ function showGate(msg){
   document.getElementById('editToggleBtn').style.display = 'none';
   document.getElementById('logoutBtn').style.display = 'none';
   document.getElementById('adminUsersBtn').style.display = 'none';
+  document.getElementById('novedadesBtn').style.display = 'none';
 }
 
 function showApp(){
@@ -554,6 +567,7 @@ function showApp(){
   document.getElementById('navTabs').style.display = '';
   document.getElementById('editToggleBtn').style.display = 'inline-block';
   document.getElementById('logoutBtn').style.display = 'inline-block';
+  document.getElementById('novedadesBtn').style.display = 'inline-block';
 }
 
 async function ensureDataLoaded(){
@@ -1744,6 +1758,49 @@ async function deleteArchivo(id){
   renderContactos();
 }
 
+let novedades = [];
+async function loadNovedades(){
+  const { data, error } = await sb.from('novedades').select('*').order('creado_en', {ascending:false}).limit(30);
+  if(!error) novedades = data || [];
+}
+function renderNovedadesList(items){
+  const el = document.getElementById('novedadesList');
+  if(!items.length){
+    el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;margin:6px 0">No hay novedades recientes.</p>';
+    return;
+  }
+  el.innerHTML = items.map(n => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px">${esc(n.mensaje)}</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:3px">${new Date(n.creado_en).toLocaleString('es-PA',{dateStyle:'medium',timeStyle:'short'})}${n.creado_por ? ' &middot; ' + esc(n.creado_por) : ''}</div>
+    </div>
+  `).join('');
+}
+function openNovedadesModal(){
+  renderNovedadesList(novedades);
+  document.getElementById('novedadesDot').style.display = 'none';
+  document.getElementById('novedadesModalOverlay').classList.add('open');
+  if(novedades.length) localStorage.setItem('novedadesVistasHasta', novedades[0].creado_en);
+}
+function closeNovedadesModal(){
+  document.getElementById('novedadesModalOverlay').classList.remove('open');
+  if(novedades.length) localStorage.setItem('novedadesVistasHasta', novedades[0].creado_en);
+}
+function checkNovedadesNuevas(){
+  if(!novedades.length) return;
+  const ultimaVista = localStorage.getItem('novedadesVistasHasta');
+  if(!ultimaVista){
+    localStorage.setItem('novedadesVistasHasta', novedades[0].creado_en);
+    return;
+  }
+  const nuevas = novedades.filter(n => new Date(n.creado_en) > new Date(ultimaVista));
+  if(nuevas.length > 0){
+    document.getElementById('novedadesDot').style.display = 'block';
+    renderNovedadesList(nuevas);
+    document.getElementById('novedadesModalOverlay').classList.add('open');
+  }
+}
+
 function fillSelect(id, options, withAll, allLabel){
   const el = document.getElementById(id);
   const current = el.value;
@@ -2318,8 +2375,9 @@ async function init(){
   fillSelect('t_tipo_servicio', TIPOS_SERVICIO, false);
   fillSelect('ut_tipo_servicio', TIPOS_SERVICIO, true, 'No estoy seguro / mixto');
   await loadArchivos();
-  await Promise.all([loadContactos(), loadTarifas(), loadTarifarioUploads(), loadManejos()]);
+  await Promise.all([loadContactos(), loadTarifas(), loadTarifarioUploads(), loadManejos(), loadNovedades()]);
   renderTarifarioUploads();
+  checkNovedadesNuevas();
   startAutoRefresh();
 }
 
@@ -2346,6 +2404,14 @@ async function pollForUpdates(){
       if(archivosModalEmpresa){
         renderArchivosList();
         if(archivos.length > prevArchivosCount) toast('Nuevo archivo subido para ' + archivosModalEmpresa);
+      }
+    }
+    const prevNovedadesTop = novedades.length ? novedades[0].creado_en : null;
+    await loadNovedades();
+    if(novedades.length && novedades[0].creado_en !== prevNovedadesTop){
+      const ultimaVista = localStorage.getItem('novedadesVistasHasta');
+      if(!ultimaVista || new Date(novedades[0].creado_en) > new Date(ultimaVista)){
+        document.getElementById('novedadesDot').style.display = 'block';
       }
     }
   } catch(e){
