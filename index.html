@@ -979,13 +979,27 @@ function vigenciaStatus(hastaStr){
 // Regla permanente: una tarifa con mas de 5 dias vencidos (vigencia_hasta) desaparece
 // del Tarifario automaticamente. No se borra de la base de datos; solo se oculta de la
 // vista. El usuario master puede revelarlas con el boton "Ver vencidas".
-function isVencidaMas5Dias(hastaStr){
-  if(!hastaStr) return false;
-  const hasta = new Date(hastaStr + 'T00:00:00');
-  if(isNaN(hasta.getTime())) return false;
+// Si la tarifa no tiene vigencia_hasta (dato incompleto de una carga), se usa la fecha
+// de la ultima actualizacion (actualizado_en) como respaldo, para que estas filas tambien
+// desaparezcan tras 5 dias sin cambios en vez de quedar visibles para siempre.
+function isVencidaMas5Dias(t){
+  if(!t) return false;
+  const hastaStr = typeof t === 'string' ? t : t.vigencia_hasta;
   const today = new Date(); today.setHours(0,0,0,0);
-  const diffDays = Math.round((today - hasta) / 86400000);
-  return diffDays > 5;
+  if(hastaStr){
+    const hasta = new Date(hastaStr + 'T00:00:00');
+    if(isNaN(hasta.getTime())) return false;
+    const diffDays = Math.round((today - hasta) / 86400000);
+    return diffDays > 5;
+  }
+  const actualizadoEn = typeof t === 'object' ? t.actualizado_en : null;
+  if(actualizadoEn){
+    const upd = new Date(actualizadoEn);
+    if(isNaN(upd.getTime())) return false;
+    const diffDays = Math.round((today - upd) / 86400000);
+    return diffDays > 5;
+  }
+  return false;
 }
 function toggleVerVencidas(){
   if(editorRole !== 'master') return;
@@ -1250,7 +1264,7 @@ function renderTarifas(){
   let rows = tarifas.filter(t => {
     // Regla permanente: una tarifa con mas de 5 dias vencidos desaparece del Tarifario.
     // Solo el usuario master puede revelarlas de nuevo con el boton "Ver vencidas".
-    if(!showVencidas && isVencidaMas5Dias(t.vigencia_hasta)) return false;
+    if(!showVencidas && isVencidaMas5Dias(t)) return false;
     if(tipo && t.tipo_servicio !== tipo) return false;
     if(proveedor && t.proveedor !== proveedor) return false;
     if(origenSel && cityOnly(t.origen) !== origenSel) return false;
@@ -1839,7 +1853,7 @@ async function loadTarifas(){
 function populateProveedorFilter(tipo){
   const sel = document.getElementById('filterProveedor');
   const current = sel.value;
-  const subset = tarifas.filter(t => (showVencidas || !isVencidaMas5Dias(t.vigencia_hasta)) && (!tipo || t.tipo_servicio === tipo));
+  const subset = tarifas.filter(t => (showVencidas || !isVencidaMas5Dias(t)) && (!tipo || t.tipo_servicio === tipo));
   const proveedores = [...new Set(subset.map(t => t.proveedor).filter(Boolean))].sort((a,b) => a.localeCompare(b));
   sel.innerHTML = '<option value="">Todas las empresas</option>' +
     proveedores.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
@@ -1853,7 +1867,7 @@ function populateOrigenFilter(tipo, proveedor){
   const sel = document.getElementById('filterOrigen');
   if(!sel) return;
   const current = sel.value;
-  const subset = tarifas.filter(t => (showVencidas || !isVencidaMas5Dias(t.vigencia_hasta)) && (!tipo || t.tipo_servicio === tipo) && (!proveedor || t.proveedor === proveedor));
+  const subset = tarifas.filter(t => (showVencidas || !isVencidaMas5Dias(t)) && (!tipo || t.tipo_servicio === tipo) && (!proveedor || t.proveedor === proveedor));
   const origenes = [...new Set(subset.map(t => cityOnly(t.origen)).filter(Boolean))].sort((a,b) => a.localeCompare(b));
   sel.innerHTML = '<option value="">Todos los origenes</option>' +
     origenes.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
@@ -1863,7 +1877,7 @@ function populateDestinoFilter(tipo, proveedor, origenSel){
   const sel = document.getElementById('filterDestino');
   if(!sel) return;
   const current = sel.value;
-  const subset = tarifas.filter(t => (showVencidas || !isVencidaMas5Dias(t.vigencia_hasta)) && (!tipo || t.tipo_servicio === tipo) && (!proveedor || t.proveedor === proveedor) && (!origenSel || cityOnly(t.origen) === origenSel));
+  const subset = tarifas.filter(t => (showVencidas || !isVencidaMas5Dias(t)) && (!tipo || t.tipo_servicio === tipo) && (!proveedor || t.proveedor === proveedor) && (!origenSel || cityOnly(t.origen) === origenSel));
   const destinos = [...new Set(subset.map(t => cityOnly(t.destino)).filter(Boolean))].sort((a,b) => a.localeCompare(b));
   sel.innerHTML = '<option value="">Todos los destinos</option>' +
     destinos.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
@@ -2187,6 +2201,7 @@ function renderResultadoHeyJefe(a){
   const norm = s => (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   const origenN = norm(a.origen), destinoN = norm(a.destino);
   const tarifasMatch = tarifas.filter(t => {
+    if(isVencidaMas5Dias(t)) return false;
     if(a.tipo_servicio && t.tipo_servicio !== a.tipo_servicio) return false;
     const tOrigen = norm(t.origen), tDestino = norm(t.destino);
     const origenOk = !origenN || tOrigen.includes(origenN) || origenN.includes(tOrigen);
