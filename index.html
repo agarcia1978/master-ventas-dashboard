@@ -851,7 +851,7 @@ function contactRowHtml(c, accent, othersCount, isExpanded, empresaKey, nested, 
       <div class="row-actions">
         ${othersCount > 0 ? `<button class="icon-btn expand-btn" onclick="toggleEmpresaExpand('${escJs(empresaKey)}')" title="${isExpanded ? 'Ocultar contactos' : 'Ver mas contactos'}">${isExpanded ? '&#9650;' : '&#9660;'} ${othersCount}</button>` : ''}
         ${showArchivos ? `<button class="icon-btn" onclick="openArchivosModal('${escJs(c.empresa)}')" title="Archivos">&#128206;${archivosCount > 0 ? ' '+archivosCount : ''}</button>` : ''}
-        ${showArchivos ? `<button class="icon-btn" onclick="openArchivosModal('${escJs(c.empresa)}','Info Operativa')" title="Informacion operativa"${infoOpCount > 0 ? ' style="border-color:var(--gold);color:var(--gold)"' : ''}>Info. Operativa${infoOpCount > 0 ? ' ('+infoOpCount+')' : ''}</button>` : ''}
+        ${showArchivos ? `<button class="icon-btn expand-btn" onclick="openArchivosModal('${escJs(c.empresa)}','Info Operativa')" title="Informacion operativa" style="border-color:${infoOpCount > 0 ? 'var(--gold)' : 'var(--danger)'};color:${infoOpCount > 0 ? 'var(--gold)' : 'var(--danger)'}">Info Operativa${infoOpCount > 0 ? ' ('+infoOpCount+')' : ''}</button>` : ''}
         ${isEditor ? `<button class="icon-btn" onclick="openContactoModal(${c.id})" title="Editar">&#9998;</button>
         <button class="icon-btn danger" onclick="deleteContacto(${c.id})" title="Eliminar">&times;</button>` : ''}
       </div>
