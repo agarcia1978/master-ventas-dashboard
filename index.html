@@ -337,6 +337,7 @@ body{
     <div class="field"><label>Notas</label><textarea id="c_notas"></textarea></div>
     <div class="field checkbox-field"><label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="c_tiene_tarifario" style="width:auto" /> Tiene tarifario</label></div>
     <div class="field checkbox-field"><label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="c_es_principal" style="width:auto" /> Contacto principal de esta empresa</label></div>
+    <div class="field checkbox-field"><label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="c_info_operativa" style="width:auto" /> Habilitar Info. Operativa</label></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeContactoModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveContacto()">Guardar</button>
@@ -865,7 +866,7 @@ function contactRowHtml(c, accent, othersCount, isExpanded, empresaKey, nested, 
       <div class="row-actions">
         ${othersCount > 0 ? `<button class="icon-btn expand-btn" onclick="toggleEmpresaExpand('${escJs(empresaKey)}')" title="${isExpanded ? 'Ocultar contactos' : 'Ver mas contactos'}">${isExpanded ? '&#9650;' : '&#9660;'} ${othersCount}</button>` : ''}
         ${showArchivos ? `<button class="icon-btn" onclick="openArchivosModal('${escJs(c.empresa)}')" title="Archivos">&#128206;${archivosCount > 0 ? ' '+archivosCount : ''}</button>` : ''}
-        ${showArchivos ? `<button class="icon-btn expand-btn" onclick="openArchivosModal('${escJs(c.empresa)}','Info Operativa')" title="Informacion operativa" style="border-color:${infoOpCount > 0 ? 'var(--gold)' : 'var(--danger)'};color:${infoOpCount > 0 ? 'var(--gold)' : 'var(--danger)'}">Info Operativa${infoOpCount > 0 ? ' ('+infoOpCount+')' : ''}</button>` : ''}
+        ${showArchivos && c.info_operativa_habilitada ? `<button class="icon-btn expand-btn" onclick="openArchivosModal('${escJs(c.empresa)}','Info Operativa')" title="Informacion operativa" style="border-color:${infoOpCount > 0 ? 'var(--gold)' : 'var(--danger)'};color:${infoOpCount > 0 ? 'var(--gold)' : 'var(--danger)'}">Info Operativa${infoOpCount > 0 ? ' ('+infoOpCount+')' : ''}</button>` : ''}
         ${isEditor ? `<button class="icon-btn" onclick="openContactoModal(${c.id})" title="Editar">&#9998;</button>
         <button class="icon-btn danger" onclick="deleteContacto(${c.id})" title="Eliminar">&times;</button>` : ''}
       </div>
@@ -1314,6 +1315,7 @@ function openContactoModal(id){
   document.getElementById('c_categoria').value = c.categoria || '';
   document.getElementById('c_tiene_tarifario').checked = !!c.tiene_tarifario;
   document.getElementById('c_es_principal').checked = !!c.es_principal;
+  document.getElementById('c_info_operativa').checked = !!c.info_operativa_habilitada;
   document.getElementById('contactoModalOverlay').classList.add('open');
 }
 function closeContactoModal(){ document.getElementById('contactoModalOverlay').classList.remove('open'); }
@@ -1331,7 +1333,8 @@ async function saveContacto(){
     p_notas: document.getElementById('c_notas').value,
     p_editor: editorName,
     p_tiene_tarifario: document.getElementById('c_tiene_tarifario').checked,
-    p_es_principal: document.getElementById('c_es_principal').checked
+    p_es_principal: document.getElementById('c_es_principal').checked,
+    p_info_operativa_habilitada: document.getElementById('c_info_operativa').checked
   };
   const {error} = await sb.rpc('upsert_contacto', payload);
   if(error){ toast("Error: " + error.message); return; }
