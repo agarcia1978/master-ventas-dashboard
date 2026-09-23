@@ -1181,7 +1181,16 @@ function renderVariantRowsHtml(rows, layout, accent){
 
   return variantGroups.map(group => {
     if(group.length === 1) return tarifaRowHtml(group[0], layout, accent, null, false);
-    const principalIdx = group.findIndex(t => !t.destino_variante);
+    // Regla: si dentro del mismo proveedor+origen+destino hay una tarifa vigente y otra ya
+    // vencida (por ejemplo, se subio una tarifa nueva y la anterior aun no se elimino),
+    // siempre se muestra la vigente como principal; la vencida queda oculta en "Ver variantes".
+    const esVencida = t => vigenciaStatus(t.vigencia_hasta) === 'vig-expired';
+    const sinVarianteVigente = group.findIndex(t => !t.destino_variante && !esVencida(t));
+    let principalIdx = sinVarianteVigente;
+    if(principalIdx < 0){
+      const cualquierVigente = group.findIndex(t => !esVencida(t));
+      principalIdx = cualquierVigente >= 0 ? cualquierVigente : group.findIndex(t => !t.destino_variante);
+    }
     const principal = group[principalIdx >= 0 ? principalIdx : 0];
     const variantes = group.filter(t => t !== principal);
     if(variantes.length === 0) return tarifaRowHtml(principal, layout, accent, null, false);
