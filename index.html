@@ -1777,7 +1777,8 @@ async function deleteArchivo(id){
 
 let novedades = [];
 async function loadNovedades(){
-  const { data, error } = await sb.from('novedades').select('*').order('creado_en', {ascending:false}).limit(30);
+  const limiteFecha = new Date(Date.now() - 3*24*60*60*1000).toISOString();
+  const { data, error } = await sb.from('novedades').select('*').gte('creado_en', limiteFecha).order('creado_en', {ascending:false}).limit(30);
   if(!error) novedades = data || [];
 }
 function renderNovedadesList(items){
