@@ -339,6 +339,7 @@ body{
     <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px">El CIF se calcula automaticamente (FOB + Flete + 1% del FOB), pero puedes escribirlo directamente si ya lo tienes.</div>
     <div class="toolbar">
       <button class="btn btn-primary" onclick="calcularAduana()">Calcular</button>
+      <button class="btn" onclick="limpiarAduana()">Limpiar</button>
       <span class="err" id="ad_error" style="color:var(--danger);font-size:12px"></span>
     </div>
 
@@ -852,6 +853,15 @@ function adCalcularTramite(cif){
   if(cif <= 2499.00) return 60.00;
   if(cif <= 10000.00) return 80.00;
   return 80.00 + (cif * 0.0027);
+}
+
+function limpiarAduana(){
+  document.getElementById('ad_fob').value = '';
+  document.getElementById('ad_flete').value = '';
+  document.getElementById('ad_cif').value = '';
+  document.getElementById('ad_error').textContent = '';
+  document.getElementById('ad_resultado').innerHTML = '';
+  document.getElementById('ad_empty').style.display = '';
 }
 
 function calcularAduana(){
