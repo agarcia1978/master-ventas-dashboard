@@ -322,27 +322,21 @@ body{
   <div id="viewAduana" style="display:none">
     <h1 class="page-title">Tramite de Aduana</h1>
     <p class="page-sub">Calculadora del costo de tramite de aduana, manejos y costo ADI segun la tabla master vigente.</p>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;align-items:flex-end">
       <div style="flex:1;min-width:150px">
-        <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em">Valor Facturas (FOB) &mdash; US$</label>
+        <label style="display:block;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Valor Facturas (FOB)</label>
         <input type="number" id="ad_fob" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
       </div>
       <div style="flex:1;min-width:150px">
-        <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em">Valor Flete &mdash; US$</label>
+        <label style="display:block;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Valor Flete</label>
         <input type="number" id="ad_flete" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
       </div>
       <div style="flex:1;min-width:150px">
-        <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em">Valor CIF &mdash; US$</label>
-        <input type="number" id="ad_cif" min="0" step="0.01" placeholder="0.00" readonly style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
+        <label style="display:block;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Valor CIF</label>
+        <input type="number" id="ad_cif" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text-dim);margin:-8px 0 14px" id="ad_cifAutoTag">CIF calculado automaticamente: FOB + Flete + 1% del FOB</div>
-    <div class="toolbar" style="margin-bottom:6px">
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim);cursor:pointer">
-        <input type="checkbox" id="ad_manualCif" onchange="adToggleManualCif()" style="width:15px;height:15px" />
-        Introducir el CIF manualmente (no tengo FOB ni Flete)
-      </label>
-    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px">El CIF se calcula automaticamente (FOB + Flete + 1% del FOB), pero puedes escribirlo directamente si ya lo tienes.</div>
     <div class="toolbar">
       <button class="btn btn-primary" onclick="calcularAduana()">Calcular</button>
       <span class="err" id="ad_error" style="color:var(--danger);font-size:12px"></span>
@@ -846,23 +840,7 @@ function adFmt(n){
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function adToggleManualCif(){
-  const manual = document.getElementById('ad_manualCif').checked;
-  document.getElementById('ad_fob').disabled = manual;
-  document.getElementById('ad_flete').disabled = manual;
-  document.getElementById('ad_cif').readOnly = !manual;
-  document.getElementById('ad_cifAutoTag').style.display = manual ? 'none' : '';
-  if(manual){
-    document.getElementById('ad_fob').value = '';
-    document.getElementById('ad_flete').value = '';
-  } else {
-    document.getElementById('ad_cif').value = '';
-    adOnInputFobFlete();
-  }
-}
-
 function adOnInputFobFlete(){
-  if(document.getElementById('ad_manualCif').checked) return;
   const fob = parseFloat(document.getElementById('ad_fob').value) || 0;
   const flete = parseFloat(document.getElementById('ad_flete').value) || 0;
   const cif = fob + flete + (fob * 0.01);
@@ -879,26 +857,12 @@ function adCalcularTramite(cif){
 function calcularAduana(){
   const errEl = document.getElementById('ad_error');
   errEl.textContent = '';
-  const manual = document.getElementById('ad_manualCif').checked;
-  let cif;
-  if(manual){
-    cif = parseFloat(document.getElementById('ad_cif').value);
-    if(!cif || cif <= 0){
-      errEl.textContent = 'Ingresa un Valor CIF valido.';
-      document.getElementById('ad_resultado').innerHTML = '';
-      document.getElementById('ad_empty').style.display = '';
-      return;
-    }
-  } else {
-    const fob = parseFloat(document.getElementById('ad_fob').value);
-    const flete = parseFloat(document.getElementById('ad_flete').value);
-    if((!fob && fob !== 0) || (!flete && flete !== 0) || fob < 0 || flete < 0 || (fob === 0 && flete === 0)){
-      errEl.textContent = 'Ingresa el Valor Facturas (FOB) y el Valor Flete, o activa el CIF manual.';
-      document.getElementById('ad_resultado').innerHTML = '';
-      document.getElementById('ad_empty').style.display = '';
-      return;
-    }
-    cif = fob + flete + (fob * 0.01);
+  const cif = parseFloat(document.getElementById('ad_cif').value);
+  if(!cif || cif <= 0){
+    errEl.textContent = 'Ingresa el Valor CIF (o el FOB y el Flete para calcularlo).';
+    document.getElementById('ad_resultado').innerHTML = '';
+    document.getElementById('ad_empty').style.display = '';
+    return;
   }
 
   const tramite = adCalcularTramite(cif);
@@ -924,9 +888,9 @@ function calcularAduana(){
       </div>
     </div>
     <div class="detalle-box" style="margin-top:12px">
-      <div class="detalle-box-title">Nota:</div>
-      <div class="detalle-box-sub" style="margin-bottom:8px">Si A plus Logistics paga los impuestos se deben incluir los siguientes cargos:</div>
-      <div style="font-size:13px;color:var(--text-dim);line-height:1.7">
+      <div style="font-size:13px;font-weight:700;color:var(--text);font-family:'Space Grotesk',sans-serif">Nota:</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:4px">Si A plus Logistics paga los impuestos se deben incluir los siguientes cargos:</div>
+      <div style="font-size:13px;color:var(--text-dim);line-height:1.7;margin-top:8px">
         Certificacion de Cheque: <b style="color:var(--text)">$20.00</b><br>
         Transfer Fee (para los agentes/clientes internacionales): <b style="color:var(--text)">$100.00</b>
       </div>
