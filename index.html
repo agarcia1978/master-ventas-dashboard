@@ -322,12 +322,21 @@ body{
   <div id="viewAduana" style="display:none">
     <h1 class="page-title">Tramite de Aduana</h1>
     <p class="page-sub">Calculadora del costo de tramite de aduana, manejos y costo ADI segun la tabla master vigente.</p>
-    <div class="field"><label>Valor Facturas (FOB) &mdash; US$</label><input type="number" id="ad_fob" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" /></div>
-    <div class="field"><label>Valor Flete &mdash; US$</label><input type="number" id="ad_flete" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" /></div>
-    <div class="field">
-      <label>Valor CIF &mdash; US$ <span id="ad_cifAutoTag" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">(calculado automaticamente: FOB + Flete + 1% del FOB)</span></label>
-      <input type="number" id="ad_cif" min="0" step="0.01" placeholder="0.00" readonly />
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+      <div style="flex:1;min-width:150px">
+        <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em">Valor Facturas (FOB) &mdash; US$</label>
+        <input type="number" id="ad_fob" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
+      </div>
+      <div style="flex:1;min-width:150px">
+        <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em">Valor Flete &mdash; US$</label>
+        <input type="number" id="ad_flete" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
+      </div>
+      <div style="flex:1;min-width:150px">
+        <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em">Valor CIF &mdash; US$</label>
+        <input type="number" id="ad_cif" min="0" step="0.01" placeholder="0.00" readonly style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--panel);color:var(--text)" />
+      </div>
     </div>
+    <div style="font-size:11px;color:var(--text-dim);margin:-8px 0 14px" id="ad_cifAutoTag">CIF calculado automaticamente: FOB + Flete + 1% del FOB</div>
     <div class="toolbar" style="margin-bottom:6px">
       <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim);cursor:pointer">
         <input type="checkbox" id="ad_manualCif" onchange="adToggleManualCif()" style="width:15px;height:15px" />
@@ -341,14 +350,6 @@ body{
 
     <div id="ad_resultado"></div>
     <div class="empty" id="ad_empty">Ingresa los valores y presiona Calcular.</div>
-
-    <div class="detalle-box" style="margin-top:20px">
-      <div class="detalle-box-title">Nota &mdash; si A+ Logistics paga los impuestos</div>
-      <div style="font-size:13px;color:var(--text-dim);margin-top:6px;line-height:1.7">
-        Certificacion de Cheque: <b style="color:var(--text)">$20.00</b><br>
-        Transfer Fee (para los agentes/clientes internacionales): <b style="color:var(--text)">$100.00</b>
-      </div>
-    </div>
   </div>
 
 </div>
@@ -850,7 +851,7 @@ function adToggleManualCif(){
   document.getElementById('ad_fob').disabled = manual;
   document.getElementById('ad_flete').disabled = manual;
   document.getElementById('ad_cif').readOnly = !manual;
-  document.getElementById('ad_cifAutoTag').style.display = manual ? 'none' : 'inline';
+  document.getElementById('ad_cifAutoTag').style.display = manual ? 'none' : '';
   if(manual){
     document.getElementById('ad_fob').value = '';
     document.getElementById('ad_flete').value = '';
@@ -929,6 +930,13 @@ function calcularAduana(){
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>50% Tramite de Aduana</span><span>${adFmt(mitadTramite)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>Costo de los manejos</span><span>${adFmt(AD_MANEJOS_COSTO)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid var(--border);font-size:15px"><span>Costo ADI</span><b>${adFmt(costoAdi)}</b></div>
+    </div>
+    <div class="detalle-box" style="margin-top:12px">
+      <div class="detalle-box-title">Nota &mdash; si A+ Logistics paga los impuestos</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:6px;line-height:1.7">
+        Certificacion de Cheque: <b style="color:var(--text)">$20.00</b><br>
+        Transfer Fee (para los agentes/clientes internacionales): <b style="color:var(--text)">$100.00</b>
+      </div>
     </div>
   `;
 }
