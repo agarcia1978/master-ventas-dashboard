@@ -912,24 +912,19 @@ function calcularAduana(){
   document.getElementById('ad_empty').style.display = 'none';
   document.getElementById('ad_resultado').innerHTML = `
     <div class="detalle-box" style="margin-top:6px">
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Valor CIF utilizado</span><b>${adFmt(cif)}</b></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Tramite de Aduana</span><b>${adFmt(tramite)}</b></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Manejos</span><b>${adFmt(AD_MANEJOS_VENTA)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Tramite de Aduana</span><b style="font-family:'IBM Plex Mono',monospace">${adFmt(tramite)}</b></div>
       <table class="adic-table" style="margin-top:8px">
         <thead><tr><th>Concepto</th><th style="text-align:right">Venta</th></tr></thead>
         <tbody>${filasManejos}</tbody>
       </table>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;margin-top:10px;border-top:2px solid var(--gold);font-size:16px">
         <span>Venta Total ${ventaTotal > ventaBruta ? '<span class="tarifario-badge" style="margin-left:6px">minimo $125.00 aplicado</span>' : ''}</span>
-        <b style="color:var(--gold)">${adFmt(ventaTotal)}</b>
+        <b style="color:var(--gold);font-family:'IBM Plex Mono',monospace">${adFmt(ventaTotal)}</b>
       </div>
-    </div>
-    <div class="detalle-box" style="margin-top:12px">
-      <div class="detalle-box-title">Costo ADI</div>
-      <div class="detalle-box-sub">50% del Tramite de Aduana + costo de los manejos</div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>50% Tramite de Aduana</span><span>${adFmt(mitadTramite)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>Costo de los manejos</span><span>${adFmt(AD_MANEJOS_COSTO)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid var(--border);font-size:15px"><span>Costo ADI</span><b>${adFmt(costoAdi)}</b></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0 0;margin-top:16px;border-top:1px solid var(--border);font-size:14px">
+        <span>Costo ADI</span>
+        <b style="font-family:'IBM Plex Mono',monospace">${adFmt(costoAdi)}</b>
+      </div>
     </div>
     <div class="detalle-box" style="margin-top:12px">
       <div class="detalle-box-title">Nota &mdash; si A+ Logistics paga los impuestos</div>
