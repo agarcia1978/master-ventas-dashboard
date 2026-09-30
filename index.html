@@ -907,19 +907,16 @@ function calcularAduana(){
   const mitadTramite = tramite * 0.5;
   const costoAdi = mitadTramite + AD_MANEJOS_COSTO;
 
-  const filasManejos = AD_MANEJOS.map(m => `<tr><td>${esc(m.nombre)}</td><td style="text-align:right">${adFmt(m.venta)}</td></tr>`).join('');
+  const filasManejos = AD_MANEJOS.map(m => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${esc(m.nombre)}</span><b style="font-family:'IBM Plex Mono',monospace">${adFmt(m.venta)}</b></div>`).join('');
 
   document.getElementById('ad_empty').style.display = 'none';
   document.getElementById('ad_resultado').innerHTML = `
     <div class="detalle-box" style="margin-top:6px">
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Tramite de Aduana</span><b style="font-family:'IBM Plex Mono',monospace">${adFmt(tramite)}</b></div>
-      <table class="adic-table" style="margin-top:8px">
-        <thead><tr><th>Concepto</th><th style="text-align:right">Venta</th></tr></thead>
-        <tbody>${filasManejos}</tbody>
-      </table>
+      ${filasManejos}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;margin-top:10px;border-top:2px solid var(--gold);font-size:16px">
-        <span>Venta Total ${ventaTotal > ventaBruta ? '<span class="tarifario-badge" style="margin-left:6px">minimo $125.00 aplicado</span>' : ''}</span>
-        <b style="color:var(--gold);font-family:'IBM Plex Mono',monospace">${adFmt(ventaTotal)}</b>
+        <span>Venta Total</span>
+        <b style="color:var(--gold);font-family:'IBM Plex Mono',monospace">${ventaTotal > ventaBruta ? '(Min) ' : ''}${adFmt(ventaTotal)}</b>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0 0;margin-top:16px;border-top:1px solid var(--border);font-size:14px">
         <span>Costo ADI</span>
