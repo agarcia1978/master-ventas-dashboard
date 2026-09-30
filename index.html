@@ -227,6 +227,7 @@ body{
     <button class="navtab active" id="navContactos" onclick="switchTab('contactos'); ocultarBotonVolverHeyJefe()">Directorio</button>
     <button class="navtab" id="navTarifas" onclick="switchTab('tarifarios'); ocultarBotonVolverHeyJefe()">Tarifarios</button>
     <button class="navtab" id="navHeyJefe" onclick="switchTab('heyjefe')">Hey, Jefe!</button>
+    <button class="navtab" id="navAduana" onclick="switchTab('aduana')">Tramite de Aduana</button>
   </div>
   <button class="btn" id="novedadesBtn" style="display:none;position:relative" onclick="openNovedadesModal()">&#128227; Novedades<span id="novedadesDot" style="display:none;position:absolute;top:-4px;right:-4px;width:9px;height:9px;border-radius:50%;background:var(--danger)"></span></button>
   <button class="btn" id="adminUsersBtn" style="display:none" onclick="openAdminUsersModal()">Administrar accesos</button>
@@ -316,6 +317,38 @@ body{
     </div>
     <div id="hj_resultado"></div>
     <div class="empty" id="hj_empty">Pega un correo o adjunta un archivo y presiona Analizar.</div>
+  </div>
+
+  <div id="viewAduana" style="display:none">
+    <h1 class="page-title">Tramite de Aduana</h1>
+    <p class="page-sub">Calculadora del costo de tramite de aduana, manejos y costo ADI segun la tabla master vigente.</p>
+    <div class="field"><label>Valor Facturas (FOB) &mdash; US$</label><input type="number" id="ad_fob" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" /></div>
+    <div class="field"><label>Valor Flete &mdash; US$</label><input type="number" id="ad_flete" min="0" step="0.01" placeholder="0.00" oninput="adOnInputFobFlete()" /></div>
+    <div class="field">
+      <label>Valor CIF &mdash; US$ <span id="ad_cifAutoTag" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">(calculado automaticamente: FOB + Flete + 1% del FOB)</span></label>
+      <input type="number" id="ad_cif" min="0" step="0.01" placeholder="0.00" readonly />
+    </div>
+    <div class="toolbar" style="margin-bottom:6px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim);cursor:pointer">
+        <input type="checkbox" id="ad_manualCif" onchange="adToggleManualCif()" style="width:15px;height:15px" />
+        Introducir el CIF manualmente (no tengo FOB ni Flete)
+      </label>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="calcularAduana()">Calcular</button>
+      <span class="err" id="ad_error" style="color:var(--danger);font-size:12px"></span>
+    </div>
+
+    <div id="ad_resultado"></div>
+    <div class="empty" id="ad_empty">Ingresa los valores y presiona Calcular.</div>
+
+    <div class="detalle-box" style="margin-top:20px">
+      <div class="detalle-box-title">Nota &mdash; si A+ Logistics paga los impuestos</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:6px;line-height:1.7">
+        Certificacion de Cheque: <b style="color:var(--text)">$20.00</b><br>
+        Transfer Fee (para los agentes/clientes internacionales): <b style="color:var(--text)">$100.00</b>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -791,9 +824,113 @@ function switchTab(tab){
   document.getElementById('viewContactos').style.display = tab === 'contactos' ? '' : 'none';
   document.getElementById('viewTarifarios').style.display = tab === 'tarifarios' ? '' : 'none';
   document.getElementById('viewHeyJefe').style.display = tab === 'heyjefe' ? '' : 'none';
+  document.getElementById('viewAduana').style.display = tab === 'aduana' ? '' : 'none';
   document.getElementById('navContactos').classList.toggle('active', tab === 'contactos');
   document.getElementById('navTarifas').classList.toggle('active', tab === 'tarifarios');
   document.getElementById('navHeyJefe').classList.toggle('active', tab === 'heyjefe');
+  document.getElementById('navAduana').classList.toggle('active', tab === 'aduana');
+}
+
+const AD_MANEJOS = [
+  { nombre: 'Formulario de Aduana', costo: 5.00, venta: 10.00 },
+  { nombre: 'Manejo', costo: 10.00, venta: 25.00 },
+  { nombre: 'Lineas Extras', costo: 2.50, venta: 5.00 },
+  { nombre: 'Fotocopias', costo: 0.00, venta: 5.00 },
+];
+const AD_MANEJOS_VENTA = AD_MANEJOS.reduce((s, m) => s + m.venta, 0);
+const AD_MANEJOS_COSTO = AD_MANEJOS.reduce((s, m) => s + m.costo, 0);
+const AD_VENTA_MINIMA = 125.00;
+
+function adFmt(n){
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function adToggleManualCif(){
+  const manual = document.getElementById('ad_manualCif').checked;
+  document.getElementById('ad_fob').disabled = manual;
+  document.getElementById('ad_flete').disabled = manual;
+  document.getElementById('ad_cif').readOnly = !manual;
+  document.getElementById('ad_cifAutoTag').style.display = manual ? 'none' : 'inline';
+  if(manual){
+    document.getElementById('ad_fob').value = '';
+    document.getElementById('ad_flete').value = '';
+  } else {
+    document.getElementById('ad_cif').value = '';
+    adOnInputFobFlete();
+  }
+}
+
+function adOnInputFobFlete(){
+  if(document.getElementById('ad_manualCif').checked) return;
+  const fob = parseFloat(document.getElementById('ad_fob').value) || 0;
+  const flete = parseFloat(document.getElementById('ad_flete').value) || 0;
+  const cif = fob + flete + (fob * 0.01);
+  document.getElementById('ad_cif').value = (fob || flete) ? cif.toFixed(2) : '';
+}
+
+function adCalcularTramite(cif){
+  if(cif <= 0) return 0;
+  if(cif <= 2499.00) return 60.00;
+  if(cif <= 10000.00) return 80.00;
+  return 80.00 + (cif * 0.0027);
+}
+
+function calcularAduana(){
+  const errEl = document.getElementById('ad_error');
+  errEl.textContent = '';
+  const manual = document.getElementById('ad_manualCif').checked;
+  let cif;
+  if(manual){
+    cif = parseFloat(document.getElementById('ad_cif').value);
+    if(!cif || cif <= 0){
+      errEl.textContent = 'Ingresa un Valor CIF valido.';
+      document.getElementById('ad_resultado').innerHTML = '';
+      document.getElementById('ad_empty').style.display = '';
+      return;
+    }
+  } else {
+    const fob = parseFloat(document.getElementById('ad_fob').value);
+    const flete = parseFloat(document.getElementById('ad_flete').value);
+    if((!fob && fob !== 0) || (!flete && flete !== 0) || fob < 0 || flete < 0 || (fob === 0 && flete === 0)){
+      errEl.textContent = 'Ingresa el Valor Facturas (FOB) y el Valor Flete, o activa el CIF manual.';
+      document.getElementById('ad_resultado').innerHTML = '';
+      document.getElementById('ad_empty').style.display = '';
+      return;
+    }
+    cif = fob + flete + (fob * 0.01);
+  }
+
+  const tramite = adCalcularTramite(cif);
+  const ventaBruta = tramite + AD_MANEJOS_VENTA;
+  const ventaTotal = Math.max(ventaBruta, AD_VENTA_MINIMA);
+  const mitadTramite = tramite * 0.5;
+  const costoAdi = mitadTramite + AD_MANEJOS_COSTO;
+
+  const filasManejos = AD_MANEJOS.map(m => `<tr><td>${esc(m.nombre)}</td><td style="text-align:right">${adFmt(m.venta)}</td></tr>`).join('');
+
+  document.getElementById('ad_empty').style.display = 'none';
+  document.getElementById('ad_resultado').innerHTML = `
+    <div class="detalle-box" style="margin-top:6px">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Valor CIF utilizado</span><b>${adFmt(cif)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Tramite de Aduana</span><b>${adFmt(tramite)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>Manejos</span><b>${adFmt(AD_MANEJOS_VENTA)}</b></div>
+      <table class="adic-table" style="margin-top:8px">
+        <thead><tr><th>Concepto</th><th style="text-align:right">Venta</th></tr></thead>
+        <tbody>${filasManejos}</tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;margin-top:10px;border-top:2px solid var(--gold);font-size:16px">
+        <span>Venta Total ${ventaTotal > ventaBruta ? '<span class="tarifario-badge" style="margin-left:6px">minimo $125.00 aplicado</span>' : ''}</span>
+        <b style="color:var(--gold)">${adFmt(ventaTotal)}</b>
+      </div>
+    </div>
+    <div class="detalle-box" style="margin-top:12px">
+      <div class="detalle-box-title">Costo ADI</div>
+      <div class="detalle-box-sub">50% del Tramite de Aduana + costo de los manejos</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>50% Tramite de Aduana</span><span>${adFmt(mitadTramite)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>Costo de los manejos</span><span>${adFmt(AD_MANEJOS_COSTO)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid var(--border);font-size:15px"><span>Costo ADI</span><b>${adFmt(costoAdi)}</b></div>
+    </div>
+  `;
 }
 
 function esc(s){
@@ -1817,6 +1954,8 @@ function checkNovedadesNuevas(){
   if(!novedades.length) return;
   const ultimaVista = localStorage.getItem('novedadesVistasHasta');
   if(!ultimaVista){
+    // primera vez que se usa esta funcion en este navegador: no mostrar todo el historial,
+    // solo marcar como vistas las novedades existentes hasta ahora
     localStorage.setItem('novedadesVistasHasta', novedades[0].creado_en);
     return;
   }
