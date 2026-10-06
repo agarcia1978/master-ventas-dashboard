@@ -1177,9 +1177,12 @@ function getTarifarioArchivo(proveedor, tipoServicio){
   const candidatos = archivos.filter(a => a.empresa === proveedor && a.tipo === 'Tarifario');
   if(candidatos.length === 0) return null;
   const sorted = candidatos.sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en));
+  // Regla: siempre gana el archivo MAS RECIENTE aplicable a ese tipo de servicio
+  // (el del mismo tipo o uno generico que cubre varios tipos). Un archivo viejo del
+  // mismo tipo nunca debe tapar a uno mas nuevo.
   if(tipoServicio){
-    const match = sorted.find(a => a.tipo_servicio === tipoServicio);
-    if(match) return match;
+    const aplicable = sorted.find(a => a.tipo_servicio === tipoServicio || !a.tipo_servicio);
+    if(aplicable) return aplicable;
   }
   const generico = sorted.find(a => !a.tipo_servicio);
   return generico || sorted[0];
