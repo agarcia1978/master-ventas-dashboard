@@ -1975,9 +1975,17 @@ function populateEmpresaDatalist(){
   fillDatalist('c_empresa_list', empresas);
 }
 async function loadTarifas(){
-  const {data, error} = await sb.rpc('get_tarifarios', {p_password: editorPassword || null});
-  if(error){ toast("Error cargando tarifarios: " + error.message); return; }
-  tarifas = data || [];
+  // Paginado: Supabase devuelve maximo 1000 filas por consulta; sin esto las tarifas
+  // del final del orden (tipo_servicio/proveedor) quedaban invisibles.
+  const PAGE = 1000;
+  let all = [];
+  for(let from = 0; ; from += PAGE){
+    const {data, error} = await sb.rpc('get_tarifarios', {p_password: editorPassword || null}).range(from, from + PAGE - 1);
+    if(error){ toast("Error cargando tarifarios: " + error.message); return; }
+    all = all.concat(data || []);
+    if(!data || data.length < PAGE) break;
+  }
+  tarifas = all;
   renderTarifas();
 }
 function populateProveedorFilter(tipo){
