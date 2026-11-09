@@ -1323,9 +1323,10 @@ function renderVariantRowsHtml(rows, layout, accent){
 // (proveedor) en un desplegable con el nombre y la cantidad de tarifas. Si el usuario filtra por
 // una empresa concreta o busca texto, se muestran abiertas automaticamente.
 let expandedEmpresaGroups = new Set();
-function toggleEmpresaGroup(key){
-  if(expandedEmpresaGroups.has(key)) expandedEmpresaGroups.delete(key);
-  else expandedEmpresaGroups.add(key);
+let collapsedEmpresaGroups = new Set();
+function toggleEmpresaGroup(key, auto){
+  const set = auto ? collapsedEmpresaGroups : expandedEmpresaGroups;
+  if(set.has(key)) set.delete(key); else set.add(key);
   renderTarifas();
 }
 function renderTarifaGroup(tipo, rows){
@@ -1346,17 +1347,18 @@ function renderTarifaGroup(tipo, rows){
   const empresasHtml = empOrder.map(nombre => {
     const empRows = empMap[nombre];
     const key = 'emp_' + tipo + '_' + nombre.replace(/[^a-zA-Z0-9]/g,'_');
-    const isExpanded = autoAbrir || expandedEmpresaGroups.has(key);
+    // Por defecto cerradas; abiertas si se filtro por empresa/busqueda (y el usuario no las cerro).
+    const isExpanded = autoAbrir ? !collapsedEmpresaGroups.has(key) : expandedEmpresaGroups.has(key);
     const vigs = empRows.map(r => r.vigencia_hasta).filter(Boolean).sort();
     const vigTxt = vigs.length ? 'Vigente hasta ' + fmtDate(vigs[vigs.length - 1]) : '';
     return `
       <div class="red-group" style="border-left:3px solid ${accent}">
-        <div class="red-group-head" ${autoAbrir ? '' : `onclick="toggleEmpresaGroup('${key}')"`}>
+        <div class="red-group-head" onclick="toggleEmpresaGroup('${key}', ${autoAbrir})">
           <span class="red-group-title">${esc(nombre)}</span>
           <span class="red-group-meta">
             ${vigTxt ? `<span class="red-group-count">${esc(vigTxt)}</span>` : ''}
             <span class="red-group-count">${empRows.length} tarifa${empRows.length === 1 ? '' : 's'}</span>
-            ${autoAbrir ? '' : `<span class="red-group-chevron">${isExpanded ? '&#9652;' : '&#9662;'}</span>`}
+            <span class="red-group-chevron">${isExpanded ? '&#9652;' : '&#9662;'}</span>
           </span>
         </div>
         ${isExpanded ? `<div class="red-group-body">${renderTarifaGroupBody(tipo, empRows)}</div>` : ''}
