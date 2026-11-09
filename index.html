@@ -1319,7 +1319,58 @@ function renderVariantRowsHtml(rows, layout, accent){
     return principalHtml + variantesHtml;
   }).join('');
 }
+// Desplegable por empresa: dentro de cada tipo de servicio, las tarifas se agrupan por empresa
+// (proveedor) en un desplegable con el nombre y la cantidad de tarifas. Si el usuario filtra por
+// una empresa concreta o busca texto, se muestran abiertas automaticamente.
+let expandedEmpresaGroups = new Set();
+function toggleEmpresaGroup(key){
+  if(expandedEmpresaGroups.has(key)) expandedEmpresaGroups.delete(key);
+  else expandedEmpresaGroups.add(key);
+  renderTarifas();
+}
 function renderTarifaGroup(tipo, rows){
+  const accent = TIPO_ACCENT[tipo] || '#F2B705';
+  const proveedorSel = document.getElementById('filterProveedor').value;
+  const q = document.getElementById('searchTarifas').value.trim();
+  const autoAbrir = !!(proveedorSel || q);
+
+  const empMap = {};
+  const empOrder = [];
+  rows.forEach(t => {
+    const nombre = t.proveedor || '(Sin empresa)';
+    if(!(nombre in empMap)){ empMap[nombre] = []; empOrder.push(nombre); }
+    empMap[nombre].push(t);
+  });
+  empOrder.sort((a,b) => a.localeCompare(b));
+
+  const empresasHtml = empOrder.map(nombre => {
+    const empRows = empMap[nombre];
+    const key = 'emp_' + tipo + '_' + nombre.replace(/[^a-zA-Z0-9]/g,'_');
+    const isExpanded = autoAbrir || expandedEmpresaGroups.has(key);
+    const vigs = empRows.map(r => r.vigencia_hasta).filter(Boolean).sort();
+    const vigTxt = vigs.length ? 'Vigente hasta ' + fmtDate(vigs[vigs.length - 1]) : '';
+    return `
+      <div class="red-group" style="border-left:3px solid ${accent}">
+        <div class="red-group-head" ${autoAbrir ? '' : `onclick="toggleEmpresaGroup('${key}')"`}>
+          <span class="red-group-title">${esc(nombre)}</span>
+          <span class="red-group-meta">
+            ${vigTxt ? `<span class="red-group-count">${esc(vigTxt)}</span>` : ''}
+            <span class="red-group-count">${empRows.length} tarifa${empRows.length === 1 ? '' : 's'}</span>
+            ${autoAbrir ? '' : `<span class="red-group-chevron">${isExpanded ? '&#9652;' : '&#9662;'}</span>`}
+          </span>
+        </div>
+        ${isExpanded ? `<div class="red-group-body">${renderTarifaGroupBody(tipo, empRows)}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="tarifa-group" style="--accent:${accent}">
+      <div class="tarifa-group-title">${TIPO_LABEL[tipo] || tipo}</div>
+      ${empresasHtml}
+    </div>
+  `;
+}
+function renderTarifaGroupBody(tipo, rows){
   const layout = TARIFA_LAYOUT[tipo] || TARIFA_LAYOUT.DEFAULT;
   const accent = TIPO_ACCENT[tipo] || '#F2B705';
   const headBlock = tarifaHeadHtml(layout);
@@ -1359,13 +1410,7 @@ function renderTarifaGroup(tipo, rows){
 
   const flatHtml = sinRed.length ? `${headBlock}${renderVariantRowsHtml(sinRed, layout, accent)}` : '';
 
-  return `
-    <div class="tarifa-group" style="--accent:${accent}">
-      <div class="tarifa-group-title">${TIPO_LABEL[tipo] || tipo}</div>
-      ${redGroupsHtml}
-      ${flatHtml}
-    </div>
-  `;
+  return `${redGroupsHtml}${flatHtml}`;
 }
 function renderTarifas(){
   const tipo = document.getElementById('filterTipo').value;
