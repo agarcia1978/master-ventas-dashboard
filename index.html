@@ -85,6 +85,10 @@ body{
   position:relative;
 }
 .row-card:hover{background:var(--panel-2);}
+/* Tarifa Promocion: color propio (violeta) distinto al de todas las demas tarifas */
+.row-card-promo{background:rgba(155,107,255,.10) !important;border-color:rgba(155,107,255,.55) !important;border-left:4px solid #9B6BFF !important;box-shadow:0 0 0 1px rgba(155,107,255,.18);}
+.row-card-promo:hover{background:rgba(155,107,255,.17) !important;}
+.promo-badge{display:inline-block;background:#9B6BFF;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 7px;margin-left:8px;vertical-align:middle;white-space:nowrap;}
 .row-main{min-width:0;overflow:hidden;display:grid;grid-template-columns:1.4fr 1.2fr minmax(110px,1fr) minmax(210px,1fr) 1.4fr;gap:16px;align-items:start;}
 .row-main > div{min-width:0;overflow:hidden;}
 .row-tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent, var(--gold));margin-bottom:3px;}
@@ -388,6 +392,7 @@ body{
     </div>
     <div class="field"><label>Aereo - Variante del destino (opcional: FARMA, DGR, ACX...)</label><input type="text" id="t_destino_variante" placeholder="ej: FARMA" /></div>
     <div class="field"><label>Aereo - Grupo/red de origen (solo DHL AERO EXPRESSO: nombre de la pestana del tarifario)</label><input type="text" id="t_grupo_red" placeholder="ej: Export Destinos de la Red" /></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#9B6BFF;font-weight:700"><input type="checkbox" id="t_es_promocion" style="width:auto;margin:0" /> Tarifa Promoci&oacute;n (se muestra con color distinto)</label></div>
     <div class="field"><label>Tarifa general (usar para RORO, Breakbulk, Courier, Terrestre, etc. - no aplica a FCL/LCL/Aereo)</label><input type="text" id="t_tarifa" /></div>
     <div class="two-col" style="grid-template-columns:1fr 1fr 1fr">
       <div class="field"><label>Tarifa 20'</label><input type="text" id="t_tarifa_20" placeholder="$0" /></div>
@@ -437,6 +442,7 @@ body{
       <div class="field"><label>Tipo de servicio (opcional)</label><select id="ut_tipo_servicio"><option value="">No estoy seguro / mixto</option></select></div>
     </div>
     <div class="field"><label>Archivo</label><input type="file" id="ut_file" /></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#9B6BFF;font-weight:700"><input type="checkbox" id="ut_es_promocion" style="width:auto;margin:0" /> Tarifa Promoci&oacute;n (todas las tarifas de este archivo se mostrar&aacute;n con color distinto)</label></div>
     <div class="field"><label>Notas para Claude (opcional)</label><textarea id="ut_notas" placeholder="Ej: esta tarifa reemplaza la anterior de este proveedor"></textarea></div>
     <div class="err" id="uploadTarifarioErr"></div>
     <div class="modal-actions">
@@ -1237,9 +1243,9 @@ function tarifaRowHtml(t, layout, accent, variantToggle, isVariant){
     ? `<button class="icon-btn variant-toggle-btn" onclick="toggleTarifaVariants('${variantToggle.key}')" title="${variantToggle.expanded ? 'Ocultar variantes' : 'Ver variantes'}">${variantToggle.expanded ? '&#9652;' : '&#9662;'} ${variantToggle.count}</button>`
     : '';
   return `
-    <div class="row-card ${isVariant ? 'row-card-variant' : ''}" style="--accent:${accent}">
+    <div class="row-card ${isVariant ? 'row-card-variant' : ''}${t.es_promocion ? ' row-card-promo' : ''}" style="--accent:${accent}">
       <div class="row-main tarifa-row-dyn${layout === TARIFA_LAYOUT.AEREO ? ' aereo-grid' : ''}" style="grid-template-columns:${layout.grid}">
-        <div class="row-empresa">${isVariant ? '' : esc(t.proveedor||'')}</div>
+        <div class="row-empresa">${isVariant ? '' : esc(t.proveedor||'')}${t.es_promocion ? '<div><span class="promo-badge">Tarifa Promoci&oacute;n</span></div>' : ''}</div>
         <div class="row-mono">${isVariant ? '' : esc(t.origen||'')}</div>
         <div class="row-mono">${destinoLabel}</div>
         ${tarifaCells(t)}
@@ -1565,6 +1571,7 @@ function openTarifaModal(id){
   document.getElementById('t_notas').value = t.notas || "";
   document.getElementById('t_cargos_adicionales').value = t.cargos_adicionales || "";
   document.getElementById('t_tipo_servicio').value = t.tipo_servicio || TIPOS_SERVICIO[0];
+  document.getElementById('t_es_promocion').checked = !!t.es_promocion;
   document.getElementById('tarifaModalOverlay').classList.add('open');
 }
 function closeTarifaModal(){ document.getElementById('tarifaModalOverlay').classList.remove('open'); }
@@ -1608,6 +1615,7 @@ async function saveTarifa(){
     p_vigencia_hasta: document.getElementById('t_vigencia_hasta').value || null,
     p_notas: document.getElementById('t_notas').value,
     p_cargos_adicionales: cargosAdicionalesRaw || null,
+    p_es_promocion: document.getElementById('t_es_promocion').checked,
     p_editor: editorName
   };
   const {error} = await sb.rpc('upsert_tarifario', payload);
@@ -1637,6 +1645,7 @@ function openUploadTarifarioModal(){
   document.getElementById('ut_tipo_servicio').value = '';
   document.getElementById('ut_file').value = '';
   document.getElementById('ut_notas').value = '';
+  document.getElementById('ut_es_promocion').checked = false;
   document.getElementById('uploadTarifarioErr').textContent = '';
   document.getElementById('uploadTarifarioModalOverlay').classList.add('open');
 }
@@ -1675,7 +1684,8 @@ async function uploadTarifarioNuevo(){
     p_archivo_nombre: file.name,
     p_url: pub.publicUrl,
     p_notas: notas,
-    p_subido_por: editorName
+    p_subido_por: editorName,
+    p_es_promocion: document.getElementById('ut_es_promocion').checked
   });
   btn.disabled = false; btn.textContent = 'Enviar para revision';
   if(error){ errEl.textContent = 'Error guardando la solicitud: ' + error.message; return; }
