@@ -102,6 +102,23 @@ body{
 .upload-card .archivo-link{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;color:var(--text);text-decoration:none;}
 .upload-card .archivo-link:hover{color:var(--gold);}
 .upload-card .meta{font-size:11px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;}
+.upload-stepper{display:flex;align-items:center;gap:0;margin:10px 0 4px;flex-wrap:wrap;}
+.upload-step{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);font-weight:600;}
+.upload-step .dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--border);background:transparent;flex:none;}
+.upload-step.done{color:#5CC48A;}
+.upload-step.done .dot{background:#5CC48A;border-color:#5CC48A;}
+.upload-step.current{color:var(--gold);}
+.upload-step.current .dot{border-color:var(--gold);border-top-color:transparent;animation:upspin 0.9s linear infinite;}
+.upload-step.warn{color:#E15A5A;}
+.upload-step.warn .dot{border-color:#E15A5A;background:#E15A5A;}
+.upload-step-line{width:22px;height:2px;background:var(--border);margin:0 6px;flex:none;}
+.upload-step-line.done{background:#5CC48A;}
+.upload-live{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gold);margin-top:6px;font-family:'IBM Plex Mono',monospace;}
+.upload-live .spin{width:12px;height:12px;border:2px solid var(--gold);border-top-color:transparent;border-radius:50%;animation:upspin 0.9s linear infinite;flex:none;}
+@keyframes upspin{to{transform:rotate(360deg)}}
+.estado-revisando{background:rgba(242,183,5,.18);color:var(--gold);border:1px solid var(--gold);}
+.estado-cola{background:rgba(160,160,160,.15);color:var(--text-dim);border:1px solid var(--border);}
+.estado-atascada{background:rgba(225,90,90,.15);color:#E15A5A;border:1px solid #E15A5A;}
 .estado-badge{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:2px 7px;white-space:nowrap;}
 .estado-pendiente{color:#A79A81;border:1px solid #A79A81;}
 .estado-revision{color:var(--gold);border:1px solid var(--gold);}
@@ -1699,6 +1716,7 @@ async function loadTarifarioUploads(){
   const {data, error} = await sb.rpc('get_tarifario_uploads', {p_password: editorPassword || null});
   if(error){ console.error('Error cargando tarifario_uploads:', error.message); return; }
   tarifarioUploads = data || [];
+  if(typeof hayRevisionActiva === 'function' && hayRevisionActiva()) ensureFastPoll();
 }
 
 async function revisarTarifarios(){
@@ -1706,9 +1724,12 @@ async function revisarTarifarios(){
   const btn = document.getElementById('revisarTarifariosBtn');
   const prevLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Revisando...'; }
+  revisionManualEnCurso = true;
+  renderTarifarioUploads();
+  ensureFastPoll();
   try{
     const { data, error } = await sb.functions.invoke('revisar-tarifarios', { body: {} });
-    if(error){ toast('Error al revisar: ' + error.message); return; }
+    if(error){ toast('Error al revisar: ' + error.message + '. Si sigue en marcha, el estado se actualiza solo en cada tarjeta.'); return; }
     if(data && data.error){ toast('Error al revisar: ' + data.error); return; }
     if(data && data.processed === 0){
       toast(data.message || 'No hay tarifarios pendientes.');
@@ -1724,7 +1745,12 @@ async function revisarTarifarios(){
   } catch(e){
     toast('Error: ' + (e.message || e));
   } finally {
+    revisionManualEnCurso = false;
     if(btn){ btn.disabled = false; btn.textContent = prevLabel; }
+    // si la funcion sigue trabajando en segundo plano (timeout del navegador), el sondeo rapido continua solo
+    await loadTarifarioUploads();
+    renderTarifarioUploads();
+    if(hayRevisionActiva()) ensureFastPoll();
   }
 }
 
@@ -1734,6 +1760,75 @@ const ESTADO_LABEL = {
   procesado: 'Publicado',
   rechazado: 'Rechazado'
 };
+
+// ---- Indicador de estado/progreso de cada tarifario subido ----
+const UPLOAD_ATASCADA_MS = 10 * 60 * 1000; // sin avance en 10 min => se avisa
+function uploadElapsedTxt(desdeIso){
+  const s = Math.max(0, Math.floor((Date.now() - new Date(desdeIso).getTime()) / 1000));
+  const m = Math.floor(s / 60), r = s % 60;
+  return (m > 0 ? m + ' min ' : '') + r + ' s';
+}
+function uploadEstadoInfo(u){
+  if(u.estado === 'revision') return {cls:'estado-revision', label:'Listo para aprobar', paso:3};
+  if(u.estado === 'procesado') return {cls:'estado-procesado', label:'Publicado', paso:4};
+  if(u.estado === 'rechazado') return {cls:'estado-rechazado', label:'Rechazado', paso:-1};
+  // pendiente
+  if(u.revisando_desde){
+    const atascada = (Date.now() - new Date(u.revisando_desde).getTime()) > UPLOAD_ATASCADA_MS;
+    return atascada
+      ? {cls:'estado-atascada', label:'Sin respuesta - reintentar', paso:2, atascada:true}
+      : {cls:'estado-revisando', label:'Revisando...', paso:2, revisando:true};
+  }
+  if(u.paso && /^Fallo/i.test(u.paso)) return {cls:'estado-atascada', label:'Fallo - reintentar', paso:1, fallo:true};
+  if(u.paso === 'En cola') return {cls:'estado-cola', label:'En cola', paso:1};
+  return {cls:'estado-cola', label:'Pendiente de revision', paso:1};
+}
+function uploadStepperHtml(u, info){
+  if(u.estado === 'rechazado') return '';
+  const pasos = ['Subido', 'En cola', 'Revisando', 'Listo para aprobar', 'Publicado'];
+  // indice actual: 0 subido, 1 en cola, 2 revisando, 3 listo para aprobar, 4 publicado
+  const cur = u.estado === 'procesado' ? 4 : u.estado === 'revision' ? 3 : (u.revisando_desde ? 2 : 1);
+  const stepsHtml = pasos.map((p, i) => {
+    let cls = i < cur ? 'done' : (i === cur ? 'current' : '');
+    if(u.estado === 'procesado' && i === 4) cls = 'done';
+    if(i === cur && (info.atascada || info.fallo)) cls = 'warn';
+    const line = i < pasos.length - 1 ? `<span class="upload-step-line ${i < cur ? 'done' : ''}"></span>` : '';
+    return `<span class="upload-step ${cls}"><span class="dot"></span>${p}</span>${line}`;
+  }).join('');
+  let live = '';
+  if(info.revisando){
+    live = `<div class="upload-live"><span class="spin"></span><span>${esc(u.paso || 'Revisando')}</span><span class="elapsed-live" data-since="${esc(u.revisando_desde)}">${uploadElapsedTxt(u.revisando_desde)}</span></div>`;
+  } else if(info.atascada){
+    live = `<div class="upload-live" style="color:#E15A5A">Lleva mas de 10 minutos sin avanzar. Pulsa "Revisar" de nuevo.</div>`;
+  } else if(info.fallo){
+    live = `<div class="upload-live" style="color:#E15A5A">${esc(u.paso)}. Pulsa "Revisar" para reintentar.</div>`;
+  } else if(u.estado === 'pendiente'){
+    live = `<div class="upload-live" style="color:var(--text-dim)">Esperando turno para ser revisado. Pulsa "Revisar" para iniciar.</div>`;
+  }
+  return `<div class="upload-stepper">${stepsHtml}</div>${live}`;
+}
+// Contador de tiempo en vivo (sin recargar toda la tarjeta)
+setInterval(() => {
+  document.querySelectorAll('.elapsed-live').forEach(el => {
+    el.textContent = uploadElapsedTxt(el.getAttribute('data-since'));
+  });
+}, 1000);
+// Sondeo rapido mientras haya cargas siendo revisadas (para ver el avance casi en tiempo real)
+let fastPollHandle = null;
+let revisionManualEnCurso = false;
+function hayRevisionActiva(){
+  return revisionManualEnCurso || tarifarioUploads.some(u => u.estado === 'pendiente' && u.revisando_desde);
+}
+function ensureFastPoll(){
+  if(fastPollHandle) return;
+  fastPollHandle = setInterval(async () => {
+    try{
+      await loadTarifarioUploads();
+      renderTarifarioUploads();
+    }catch(e){}
+    if(!hayRevisionActiva()){ clearInterval(fastPollHandle); fastPollHandle = null; }
+  }, 4000);
+}
 
 function borradorPreviewTable(borrador){
   if(!Array.isArray(borrador) || borrador.length === 0) return '<p style="font-size:12px;color:var(--text-dim)">Sin filas en el borrador.</p>';
@@ -1780,12 +1875,13 @@ function renderTarifarioUploads(){
   const historial = tarifarioUploads.filter(u => u.estado === 'procesado' || u.estado === 'rechazado').slice(0, 8);
 
   const cardHtml = (u) => {
-    const badgeClass = 'estado-' + u.estado;
+    const info = uploadEstadoInfo(u);
+    const badgeClass = info.cls;
     const fecha = fmtDate(u.creado_en ? u.creado_en.slice(0,10) : '');
-    let extra = '';
+    let extra = uploadStepperHtml(u, info);
     if(u.estado === 'revision'){
       const abierto = expandedUploadBorradores.has(u.id);
-      extra = `
+      extra += `
         ${u.resumen ? `<div class="upload-resumen">${esc(u.resumen)}</div>` : ''}
         <button class="icon-btn expand-btn" onclick="toggleBorradorPreview(${u.id})" id="borradorBtn-${u.id}">${abierto ? 'Ocultar detalle &#9652;' : 'Ver detalle &#9662;'}</button>
         <div id="borrador-${u.id}" style="display:${abierto ? 'block' : 'none'}">${borradorPreviewTable(u.borrador)}</div>
@@ -1794,20 +1890,20 @@ function renderTarifarioUploads(){
           <button class="btn" onclick="rechazarTarifarioUpload(${u.id})">Rechazar</button>
         </div>` : `<div class="upload-resumen">Solo el usuario master puede aprobar o rechazar esta carga.</div>`}`;
     } else if(u.estado === 'pendiente'){
-      extra = (u.notas
-        ? `<div class="upload-resumen" style="color:var(--danger)">${esc(u.notas)}</div><div class="upload-resumen">Aun esperando a que Claude lo revise (intentos previos fallaron, ver nota arriba).</div>`
-        : `<div class="upload-resumen">Esperando a que Claude lo revise.</div>`)
-        + (editorRole === 'master' ? `<div class="upload-actions">
+      extra += (u.notas
+        ? `<div class="upload-resumen" style="color:var(--danger)">${esc(u.notas)}</div>`
+        : '')
+        + (editorRole === 'master' && !(u.revisando_desde) ? `<div class="upload-actions">
           <button class="btn" onclick="eliminarTarifarioPendiente(${u.id})">Eliminar carga</button>
         </div>` : '');
     } else if(u.notas){
-      extra = `<div class="upload-resumen">${esc(u.notas)}</div>`;
+      extra += `<div class="upload-resumen">${esc(u.notas)}</div>`;
     }
     return `
       <div class="upload-card">
         <div class="upload-card-head">
           <a class="archivo-link" href="${esc(u.archivo_url)}" target="_blank" rel="noopener">&#128196; ${esc(u.archivo_nombre)}</a>
-          <span class="estado-badge ${badgeClass}">${esc(ESTADO_LABEL[u.estado] || u.estado)}</span>
+          <span class="estado-badge ${badgeClass}">${esc(info.label)}</span>
         </div>
         <div class="meta">${esc(u.empresa)}${u.tipo_servicio ? ' · ' + esc(u.tipo_servicio) : ''} · subido por ${esc(u.subido_por||'—')} · ${fecha}</div>
         ${extra}
@@ -1824,8 +1920,8 @@ function renderTarifarioUploads(){
     <div class="uploads-panel">
       <div class="uploads-panel-head">
         <span class="title">Tarifarios subidos por pricing</span>
-        <span class="count-tag">${activos.length} activos</span>
-        ${editorRole === 'master' ? `<button class="btn btn-primary" style="margin-left:auto" onclick="event.stopPropagation(); revisarTarifarios();" id="revisarTarifariosBtn">Revisar</button>` : ''}
+        <span class="count-tag">${activos.length} activos${(() => { const n = activos.filter(x => x.estado === 'pendiente' && x.revisando_desde).length; return n ? ' &middot; ' + n + ' revisando' : ''; })()}</span>
+        ${editorRole === 'master' ? `<button class="btn btn-primary" style="margin-left:auto" ${hayRevisionActiva() ? 'disabled' : ''} onclick="event.stopPropagation(); revisarTarifarios();" id="revisarTarifariosBtn">${hayRevisionActiva() ? 'Revisando...' : 'Revisar'}</button>` : ''}
       </div>
       <div class="uploads-panel-body">
         ${activosHtml || '<p style="font-size:12px;color:var(--text-dim)">No hay cargas pendientes en este momento.</p>'}
